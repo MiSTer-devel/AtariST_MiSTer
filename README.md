@@ -1,11 +1,5 @@
 # Atari ST/STe for MiSTer (port of MiSTery)
 
-## Not implemented in port
-
-- Real MIDI input/output
-- Serial/parallel port redirect to USB
-
-
 Thanks to Gyorgy Szombathelyi for MiSTery core
 
 Following is original ReadMe from MiST.
