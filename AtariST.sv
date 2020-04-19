@@ -179,14 +179,14 @@ wire  [1:0] buttons;
 wire [31:0] status;
 wire        forced_scandoubler;
 wire [31:0] sd_lba;
-wire        sd_rd;
-wire        sd_wr;
+wire  [1:0] sd_rd;
+wire  [1:0] sd_wr;
 wire        sd_ack;
 wire  [7:0] sd_buff_addr;
 wire [15:0] sd_buff_dout;
 wire [15:0] sd_buff_din;
 wire        sd_buff_wr;
-wire        img_mounted;
+wire  [1:0] img_mounted;
 wire        img_readonly;
 wire [63:0] img_size;
 wire        ioctl_download;
@@ -201,7 +201,7 @@ wire [24:0] ps2_mouse;
 
 wire [21:0] gamma_bus;
 
-hps_io #(.STRLEN($size(CONF_STR)>>3), .WIDE(1)) hps_io
+hps_io #(.STRLEN($size(CONF_STR)>>3), .WIDE(1), .VDNUM(2)) hps_io
 (
 	.clk_sys(clk_32),
 	.HPS_BUS(HPS_BUS),
