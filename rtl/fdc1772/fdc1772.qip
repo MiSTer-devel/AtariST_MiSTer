@@ -1,0 +1,2 @@
+set_global_assignment -name SYSTEMVERILOG_FILE [file join $::quartus(qip_path) fdc1772.sv ]
+set_global_assignment -name VERILOG_FILE [file join $::quartus(qip_path) floppy.v ]

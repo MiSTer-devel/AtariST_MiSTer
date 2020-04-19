@@ -1,0 +1,6 @@
+set_global_assignment -name VERILOG_FILE [file join $::quartus(qip_path) mfp.v ]
+set_global_assignment -name VERILOG_FILE [file join $::quartus(qip_path) mfp_hbit16.v ]
+set_global_assignment -name VERILOG_FILE [file join $::quartus(qip_path) mfp_srff16.v ]
+set_global_assignment -name VERILOG_FILE [file join $::quartus(qip_path) mfp_timer.v ]
+set_global_assignment -name VERILOG_FILE [file join $::quartus(qip_path) io_fifo.v ]
+set_global_assignment -name VHDL_FILE [file join $::quartus(qip_path) CEGen.vhd ]

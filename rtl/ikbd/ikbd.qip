@@ -1,0 +1,4 @@
+set_global_assignment -name SYSTEMVERILOG_FILE [file join $::quartus(qip_path) ikbd.sv ]
+set_global_assignment -name SYSTEMVERILOG_FILE [file join $::quartus(qip_path) ps2.sv ]
+set_global_assignment -name VERILOG_FILE [file join $::quartus(qip_path) rom/MCU_BIROM.v ]
+set_global_assignment -name QIP_FILE [file join $::quartus(qip_path) hd63701/HD63701.qip ]

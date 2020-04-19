@@ -1,0 +1,7 @@
+set_global_assignment -name VERILOG_FILE [file join $::quartus(qip_path) gstmcu.v ]
+set_global_assignment -name VERILOG_FILE [file join $::quartus(qip_path) gstshifter.v ]
+set_global_assignment -name VERILOG_FILE [file join $::quartus(qip_path) clockgen.v ]
+set_global_assignment -name VERILOG_FILE [file join $::quartus(qip_path) latch.v ]
+set_global_assignment -name VERILOG_FILE [file join $::quartus(qip_path) mcucontrol.v ]
+set_global_assignment -name VERILOG_FILE [file join $::quartus(qip_path) register.v ]
+set_global_assignment -name VERILOG_FILE [file join $::quartus(qip_path) shifter_video.v ]

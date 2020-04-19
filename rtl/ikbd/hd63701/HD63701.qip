@@ -1,0 +1,6 @@
+set_global_assignment -name VERILOG_FILE [file join $::quartus(qip_path) HD63701.v ]
+set_global_assignment -name VERILOG_FILE [file join $::quartus(qip_path) HD63701_ALU.v ]
+set_global_assignment -name VERILOG_FILE [file join $::quartus(qip_path) HD63701_CORE.v ]
+set_global_assignment -name VERILOG_FILE [file join $::quartus(qip_path) HD63701_EXEC.v ]
+set_global_assignment -name VERILOG_FILE [file join $::quartus(qip_path) HD63701_MCROM.v ]
+set_global_assignment -name VERILOG_FILE [file join $::quartus(qip_path) HD63701_SEQ.v ]
