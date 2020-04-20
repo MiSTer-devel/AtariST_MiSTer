@@ -132,7 +132,6 @@ assign UART_DTR = UART_DSR;
 
 assign USER_OUT  = '1;
 
-assign AUDIO_S   = 0;
 assign AUDIO_MIX = 0;
 
 assign LED_USER  = ~&floppy_sel;
@@ -140,8 +139,8 @@ assign LED_DISK  = 0;
 assign LED_POWER = 0;
 assign BUTTONS   = 0;
 
-assign VIDEO_ARX = viking_active ? 8'd5 : 8'd4;
-assign VIDEO_ARY = viking_active ? 8'd4 : 8'd3;
+assign VIDEO_ARX = wide ? 8'd16 : viking_active ? 8'd5 : 8'd4;
+assign VIDEO_ARY = wide ? 8'd9  : viking_active ? 8'd4 : 8'd3;
 
 assign {DDRAM_CLK, DDRAM_BURSTCNT, DDRAM_ADDR, DDRAM_DIN, DDRAM_BE, DDRAM_RD, DDRAM_WE} = 0;
 assign {SD_SCK, SD_MOSI, SD_CS} = 'Z;
@@ -402,8 +401,9 @@ assign CLK_VIDEO = clk_96;
 assign VGA_SL    = (~mode[1] & ~viking_active) ? scanlines : 2'b00;
 assign VGA_F1    = 0;
 
-assign AUDIO_L = {audio_mix_l, 1'b0};
-assign AUDIO_R = {audio_mix_r, 1'b0};
+assign AUDIO_S = 0;
+assign AUDIO_L = audio_mix_l;
+assign AUDIO_R = audio_mix_r;
 
 //////////////////////////////////////////////////////////////////////////////////
 //
@@ -438,6 +438,7 @@ wire [8:0] acsi_enable = status[17:10];
 wire [1:0] fdc_wp = status[7:6];
 wire       mono_monitor = status[8];
 wire       narrow_brd = status[29];
+wire       wide = status[9];
 
 // RAM size selects
 wire MEM512K = (status[3:1] == 3'd0);
@@ -958,22 +959,8 @@ ym2149 ym2149 (
 
 // audio output processing
 
-// YM and STE audio channels are expanded to 14 bits and added resulting in 15 bits
-// for the sigmadelta dac take from the minimig
-
-// This should later be handled by the lmc1992
-
-wire [9:0] ym_audio_out_l_signed = ym_audio_out_l - 10'h200;
-wire [9:0] ym_audio_out_r_signed = ym_audio_out_r - 10'h200;
-wire [7:0] ste_audio_out_l_signed = dma_snd_l - 8'h80;
-wire [7:0] ste_audio_out_r_signed = dma_snd_r - 8'h80;
-
-wire [14:0] audio_mix_l =
-        { ym_audio_out_l_signed[9], ym_audio_out_l_signed, ym_audio_out_l_signed[9:6]} +
-        { ste_audio_out_l_signed[7], ste_audio_out_l_signed, ste_audio_out_l_signed[7:2] };
-wire [14:0] audio_mix_r =
-        { ym_audio_out_r_signed[9], ym_audio_out_r_signed, ym_audio_out_r_signed[9:6]} +
-        { ste_audio_out_r_signed[7], ste_audio_out_r_signed, ste_audio_out_r_signed[7:2] };
+wire [15:0] audio_mix_l = {1'b0, ym_audio_out_l, ym_audio_out_l[9:5]} + {1'b0, dma_snd_l, dma_snd_l[7:1]};
+wire [15:0] audio_mix_r = {1'b0, ym_audio_out_r, ym_audio_out_r[9:5]} + {1'b0, dma_snd_r, dma_snd_r[7:1]};
 
 /* ------------------------------------------------------------------------------ */
 /* ------------------------------ Mega STe control ------------------------------ */
