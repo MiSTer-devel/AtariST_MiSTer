@@ -127,8 +127,9 @@ module emu
 
 assign ADC_BUS  = 'Z;
 
-assign UART_RTS = UART_CTS;
 assign UART_DTR = UART_DSR;
+assign UART_RTS = uart ? usart_rts : UART_CTS;
+assign UART_TXD = uart ? usart_so  : midi_tx;
 
 assign USER_OUT  = '1;
 
@@ -405,19 +406,6 @@ assign AUDIO_S = 0;
 assign AUDIO_L = audio_mix_l;
 assign AUDIO_R = audio_mix_r;
 
-//////////////////////////////////////////////////////////////////////////////////
-//
-// connection to transfer serial/rs232 data from mfp to io controller
-// TODO: update MFP with standard serial in/out and connect to UART
-//
-wire  [7:0] serial_data_from_mfp;
-wire        serial_strobe_from_mfp;
-wire        serial_data_from_mfp_available;
-wire  [7:0] serial_data_to_mfp;
-wire        serial_strobe_to_mfp;
-wire  [7:0] serial_status_to_mfp;
-wire [63:0] serial_status_from_mfp;
-
 
 //////////////////////////////////////////////////////////////////////////////////
 ////////////////////////// Atari ST core /////////////////////////////////////////
@@ -439,6 +427,7 @@ wire [1:0] fdc_wp = status[7:6];
 wire       mono_monitor = status[8];
 wire       narrow_brd = status[29];
 wire       wide = status[9];
+wire       uart = status[26];
 
 // RAM size selects
 wire MEM512K = (status[3:1] == 3'd0);
@@ -792,11 +781,12 @@ wire xsint_delayed = xsint_delay[7];
 wire mfp_io7 = mono_monitor ^ (ste?xsint:1'b0);
 
 // inputs 1,2 and 6 are outputs from an MC1489 serial receiver
-wire  [7:0] mfp_gpio_in = {mfp_io7, 1'b1, !(acsi_irq | fdc_irq), !acia_irq, blitter_irq_n, 2'b11, ~joy2[4]};
+wire  [7:0] mfp_gpio_in = {mfp_io7, 1'b1, !(acsi_irq | fdc_irq), !acia_irq, blitter_irq_n, UART_CTS, 1'b1, ~joy2[4]};
 wire  [1:0] mfp_timer_in = {de, ste?xsint_delayed:1'b1};
 wire  [7:0] mfp_data_out;
 wire        mfp_dtack;
 
+wire        usart_so, usart_rts;
 wire        mfp_int, mfp_iack = ~mfpiack_n;
 assign      mfpint_n = ~mfp_int;
 
@@ -815,14 +805,9 @@ mfp mfp (
 	.iack     ( mfp_iack      ),
 	.dtack    ( mfp_dtack     ),
 
-	// serial/rs232 interface io-controller<->mfp
-	.serial_data_out_available (serial_data_from_mfp_available),
-	.serial_strobe_out         (serial_strobe_from_mfp),
-	.serial_data_out           (serial_data_from_mfp),
-	.serial_status_out         (serial_status_from_mfp),
-	.serial_strobe_in          (serial_strobe_to_mfp),
-	.serial_data_in            (serial_data_to_mfp),
-	.serial_status_in          (serial_status_to_mfp),
+	// serial/rs232 interface
+	.si       ( UART_RXD      ),
+	.so       ( usart_so      ),
 
 	// input signals
 	.t_i      ( mfp_timer_in  ),  // timer a/b inputs
@@ -891,6 +876,7 @@ acia kbd_acia (
 wire [7:0] midi_acia_data_out;
 wire       midi_acia_irq;
 wire       midi_out_strobe;
+wire       midi_tx;
 
 acia midi_acia (
 	// cpu interface
@@ -905,7 +891,7 @@ acia midi_acia (
 	.irq      ( midi_acia_irq      ),
 
 	.rx       ( UART_RXD           ),
-	.tx       ( UART_TXD           ),
+	.tx       ( midi_tx            ),
 
 	// redirected midi interface
 	.dout_strobe ( midi_out_strobe )
@@ -937,6 +923,7 @@ wire [7:0] port_a_out;
 wire [7:0] port_b_out;
 wire       floppy_side = port_a_out[0];
 wire [1:0] floppy_sel = port_a_out[2:1];
+assign     usart_rts = port_a_out[3];
 
 ym2149 ym2149 (
 	.CLK         ( clk_32        ),
