@@ -83,6 +83,9 @@ always @(posedge clk32, negedge nReset) begin : reloadctrl
 	if (!nReset) begin
 		reload_delay_n <= 1'b0;
 		pxCtrEn <= 1'b0;
+		pixCntr <= 4'h4;
+		rdelay_reg <= 4'b0000;
+		load_d1_reg <= 1'b0;
 	end else begin
 		if (Reload_D & ~Reload) pxCtrEn <= load_d2;
 		if (pixClkEn) begin
