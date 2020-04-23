@@ -95,6 +95,7 @@ module gstmcu (
     output VSYNC_N,
     output reg DE,
     output reg BLANK_N,
+    input  MDE60,
     output PAL,
     output RDAT_N,
     output WE_N,
@@ -820,9 +821,9 @@ vsyncgen vsyncgen (
 
 // sync to clk32
 wire       vertclk_en = hsc_load & m2clock_en_p;
-reg  [8:0] vsc;
-wire [8:0] vsc_load_val_ste = { 1'b0, ~mde1, ~mde1, ~mde1 & ntsc, ~mde1 & ntsc, 1'b1, mde1, ~mde1 & ntsc, 1'b0 };
-wire [8:0] vsc_load_val_st  = mde1 ? 9'd11 : cpal ? 9'd199 : 9'd249;
+reg  [9:0] vsc;
+wire [9:0] vsc_load_val_ste = mde1 ? (MDE60 ? 10'd939 : 9'd12) : cpal ? 10'd200 : 10'd250;
+wire [9:0] vsc_load_val_st  = mde1 ? (MDE60 ? 10'd939 : 9'd11) : cpal ? 10'd199 : 10'd249;
 reg        vsc_load;
 
 reg        iivsync;
@@ -875,13 +876,13 @@ vdegen vdegen (
 `endif
 
 // sync to clk32
-reg  [8:0] vdec;
+reg  [9:0] vdec;
 
 wire       vblank_set =   (cpal & vdec == 9'd24) | (cntsc & vdec == 9'd15);        // 0030 = 24, 0017 = 15
 wire       vblank_reset = mde1 | (cpal & vdec == 9'd307) | (cntsc & vdec == 9'd257); // 0463 = 307, 0401 = 257
 
-wire       vde_set =      (mde1 & vdec == 9'd35 ) | (cpal & vdec == 9'd62 ) | (cntsc & vdec == 9'd33 ); // 0043 = 35, 0076 = 62, 0041 = 33
-wire       vde_reset =    (mde1 & vdec == 9'd435) | (cpal & vdec == 9'd262) | (cntsc & vdec == 9'd233); // 0663 = 435, 0406 = 262, 0351 = 233
+wire       vde_set =      (mde1 & MDE60 & vdec == 9'd120) | (mde1 & ~MDE60 & vdec == 9'd35 ) | (cpal & vdec == 9'd62 ) | (cntsc & vdec == 9'd33 ); // 0043 = 35, 0076 = 62, 0041 = 33
+wire       vde_reset =    (mde1 & MDE60 & vdec == 9'd520) | (mde1 & ~MDE60 & vdec == 9'd435) | (cpal & vdec == 9'd262) | (cntsc & vdec == 9'd233); // 0663 = 435, 0406 = 262, 0351 = 233
 
 always @(posedge clk32, negedge porb) begin
 	if (!porb) begin

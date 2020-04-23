@@ -210,6 +210,7 @@ hps_io #(.STRLEN($size(CONF_STR)>>3), .WIDE(1), .VDNUM(2)) hps_io
 	.buttons(buttons),
 	.forced_scandoubler(forced_scandoubler),
 	.gamma_bus(gamma_bus),
+	.new_vmode(mde60),
 
 	.joystick_0(joy0),
 	.joystick_1(joy1),
@@ -284,18 +285,24 @@ always @(posedge clk_32) begin
 	
 	dio_download <= ioctl_download;
 	if(~dio_download & ioctl_download) begin
-		case(ioctl_index[3:0])
+		case(ioctl_index[4:0])
 			0: dio_data_addr <= (24'he00000 - 2'd2) >> 1; // TOS 256k
 			1: dio_data_addr <= (24'hfc0000 - 2'd2) >> 1; // TOS 192k
 			2: dio_data_addr <= (24'hfa0000 - 2'd2) >> 1; // Cartridge
-			3: dio_data_addr <= 23'h0; // Clear memory
+			3: dio_data_addr <= 0; // Clear memory
 		endcase
 	end
 	
 	if (ioctl_wr & ioctl_download) begin
-		dio_data_addr <= dio_data_addr + 1'd1;
-		dio_data <= {ioctl_dout[7:0], ioctl_dout[15:8]};
-		dio_data_in_strobe_uio <= ~dio_data_in_strobe_uio;
+		if(ioctl_index[4:0] == 4 && !ioctl_addr[24:2]) begin // 4 - custom memory pointer
+			if(!ioctl_addr) dio_data_addr[16:1] <= ioctl_dout;
+			else dio_data_addr[24:17] <= ioctl_dout[7:0];
+		end
+		else begin
+			dio_data_addr <= dio_data_addr + 1'd1;
+			dio_data <= {ioctl_dout[7:0], ioctl_dout[15:8]};
+			dio_data_in_strobe_uio <= ~dio_data_in_strobe_uio;
+		end
 	end
 end
 
@@ -303,8 +310,8 @@ end
 
 wire [11:0] hstart[8] = '{ 145, 161, 148, 0,  193, 257, 148, 0};
 wire [11:0] hend[8]   = '{1841,1841, 788, 0, 1793,1745, 788, 0};
-wire [11:0] vstart[8] = '{  19,  28,  37, 0,   28,  46,  37, 0};
-wire [11:0] vend[8]   = '{ 261, 311, 437, 0,  252, 293, 437, 0};
+wire [11:0] vstart[8] = '{  19,  28,  37, 0,   28,  46, 122, 0};
+wire [11:0] vend[8]   = '{ 261, 311, 437, 0,  252, 293, 522, 0};
 
 reg       hblank_gen, vblank_gen;
 reg [2:0] mode;
@@ -314,7 +321,7 @@ always @(posedge clk_32) begin
 	
 	old_vs <= vsync_n;
 	if(old_vs & ~vsync_n) begin
-		mode <= {narrow_brd, mono, ~mono & pal};
+		mode <= {mono ? mde60 : narrow_brd, mono, ~mono & pal};
 		vcnt <= 0;
 	end
 	
@@ -426,6 +433,7 @@ wire [8:0] acsi_enable = status[17:10];
 wire [1:0] fdc_wp = status[7:6];
 wire       mono_monitor = status[8];
 wire       narrow_brd = status[29];
+wire       mde60 = status[30];
 wire       wide = status[9];
 wire       uart = status[26];
 
@@ -606,6 +614,7 @@ gstmcu gstmcu (
 	.DE         ( de ),
 	.BLANK_N    ( blank_n ),
 	.PAL        ( pal ),
+	.MDE60      ( mde60 ),
 	.RDAT_N     ( rdat_n ),
 	.WE_N       ( ram_we_n ),
 	.WDAT_N     ( wdat_n ),
