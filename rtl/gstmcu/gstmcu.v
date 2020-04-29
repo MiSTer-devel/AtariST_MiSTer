@@ -878,11 +878,11 @@ vdegen vdegen (
 // sync to clk32
 reg  [9:0] vdec;
 
-wire       vblank_set =   (cpal & vdec == 9'd24) | (cntsc & vdec == 9'd15);        // 0030 = 24, 0017 = 15
-wire       vblank_reset = mde1 | (cpal & vdec == 9'd307) | (cntsc & vdec == 9'd257); // 0463 = 307, 0401 = 257
+wire       vblank_set =   (cpal & vdec == 24) | (cntsc & vdec == 15);          // 0030 = 24,  0017 = 15
+wire       vblank_reset = mde1 | (cpal & vdec == 307) | (cntsc & vdec == 257); // 0463 = 307, 0401 = 257
 
-wire       vde_set =      (mde1 & MDE60 & vdec == 9'd120) | (mde1 & ~MDE60 & vdec == 9'd35 ) | (cpal & vdec == 9'd62 ) | (cntsc & vdec == 9'd33 ); // 0043 = 35, 0076 = 62, 0041 = 33
-wire       vde_reset =    (mde1 & MDE60 & vdec == 9'd520) | (mde1 & ~MDE60 & vdec == 9'd435) | (cpal & vdec == 9'd262) | (cntsc & vdec == 9'd233); // 0663 = 435, 0406 = 262, 0351 = 233
+wire       vde_set =      (mde1 & MDE60 & vdec == 120) | (mde1 & ~MDE60 & vdec == 35 ) | (cpal & vdec == 62 ) | (cntsc & vdec == 33 ); // 0043 = 35,  0076 = 62,  0041 = 33
+wire       vde_reset =    (mde1 & MDE60 & vdec == 520) | (mde1 & ~MDE60 & vdec == 435) | (cpal & vdec == 262) | (cntsc & vdec == 233); // 0663 = 435, 0406 = 262, 0351 = 233
 
 always @(posedge clk32, negedge porb) begin
 	if (!porb) begin
