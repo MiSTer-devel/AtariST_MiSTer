@@ -105,7 +105,6 @@ always @(posedge clk) begin
 			if(kbd_sr[7:0] == 8'h7c) matrix[14][1] <= kbd_release; // KP *
 			if(kbd_sr[7:0] == 8'h7b) matrix[14][3] <= kbd_release; // KP -
 			if(kbd_sr[7:0] == 8'h79) matrix[14][5] <= kbd_release; // KP +
-			if(kbd_sr[7:0] == 8'h4a) matrix[14][0] <= kbd_release; // KP /
 			if(kbd_sr[7:0] == 8'h70) matrix[12][7] <= kbd_release; // KP 0
 			if(kbd_sr[7:0] == 8'h69) matrix[12][6] <= kbd_release; // KP 1
 			if(kbd_sr[7:0] == 8'h72) matrix[13][6] <= kbd_release; // KP 2
