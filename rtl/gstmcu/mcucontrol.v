@@ -4,6 +4,7 @@ module mcucontrol (
     input clk32,
     input porb,
     input resb,
+    input turbo,
     input clk,
     input ias,
     input idev,
@@ -33,7 +34,6 @@ module mcucontrol (
     output frame,
     output reg vidb,
     output viden,
-    output vidclkb,
     output vos,
     output sndclk,
     output snden, // sadsel
@@ -50,7 +50,7 @@ module mcucontrol (
 
 wire c1 = ~(lcycsel & time1); // pk033
 wire c1_en_p = lcycsel & time1 & clk;
-wire c1_en_n = ~lcycsel & ~addrselb & clk;
+wire c1_en_n = cycsel_en;
 reg c1_rise, c1_fall;
 always @(posedge clk32) begin
     //c1_rise <= c1_en_p;
@@ -60,7 +60,6 @@ end
 //////////// VIDEO CONTROL //////////
 assign frame = ~pk005;
 assign viden = ~vidb; // pk010
-assign vidclkb = ~(~addrselb | vidb);
 assign refb = pk016 | pk024;
 assign vos = ~(vidb & ~snden);
 
@@ -135,7 +134,7 @@ always @(posedge clk32) begin
     if (c1_en_p) pk031 <= sndon;
 end
 
-stlatch sframe_l(clk32, 1'b0, !pk031, !clk, ~(pk061 & sfrep), sframe);
+stlatch sframe_l(clk32, 1'b0, !pk031, !clk ^ turbo, ~(pk061 & sfrep), sframe);
 
 stlatch sint_l(clk32, !sintsb, 1'b0, c1_fall, 1'b0, sint);
 //always @(posedge clk32, negedge sintsb) begin
@@ -189,7 +188,7 @@ always @(posedge clk32, negedge ramsel) begin
 end
 
 wire dcyc;
-stlatch dcyc_l(clk32, !porb, 1'b0, clk, !resb | (time1 & addrselb & viden), dcyc); // pl025
+stlatch dcyc_l(clk32, !porb, 1'b0, clk ^ turbo, !resb | (time1 & addrselb & viden), dcyc); // pl025
 
 /////
 

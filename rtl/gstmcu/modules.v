@@ -110,7 +110,7 @@ module cbn (
 	input       xr,
 	output      q,
 	output      xq,
-	output      co
+	output reg  co
 );
 
 reg dc;
@@ -141,7 +141,7 @@ module cb1 (
 	input       xr,
 	output      q,
 	output      xq,
-	output      co
+	output reg  co
 );
 
 reg dc;

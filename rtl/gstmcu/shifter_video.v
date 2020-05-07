@@ -17,12 +17,10 @@ module shifter_video (
 
 // edge detectors
 reg LOAD_D;
-reg Reload_D;
 
 always @(posedge clk32) begin : edgedetect
 	// edge detectors
 	LOAD_D <= LOAD;
-	Reload_D <= Reload;
 end
 
 // shift array
@@ -87,8 +85,8 @@ always @(posedge clk32, negedge nReset) begin : reloadctrl
 		rdelay_reg <= 4'b0000;
 		load_d1_reg <= 1'b0;
 	end else begin
-		if (Reload_D & ~Reload) pxCtrEn <= load_d2;
 		if (pixClkEn) begin
+			if (Reload & ~&pixCntr) pxCtrEn <= load_d2; // negedge of Reload
 			load_d2 <= load_d1;
 			if (load_d1) pxCtrEn <= 1'b1; // async set of pxCtrEn from load_d2
 			pixCntr <= pxCtrEn ? pixCntr + 1'h1 : 4'h4;

@@ -29,10 +29,9 @@ module viking
 
 	// memory interface
 	input             himem,     // use memory behind rom
-	input             clk_8_en,  // 8 MHz bus clock
-	input       [1:0] bus_cycle, // bus-cycle for bus access sync
+	input             bus_sync,  // 2 MHz bus sync
 	output reg [22:0] addr,      // video word address
-	output            read,      // video read cycle
+	output reg        read,      // video read cycle
 	input      [63:0] data,      // video data read
 
 	// VGA output (multiplexed with sm124 output in top level)
@@ -72,63 +71,40 @@ localparam [10:0] VS   = 4;
 localparam [10:0] VBP  = 9;
 localparam [10:0] VLAST= V+VFP+VS+VBP-1'd1;
 
-assign read = (bus_cycle == 2) && me;  // memory enable can directly be used as a ram read signal 
-
 reg [63:0] line[32];
-reg me;
+
 always @(posedge pclk) begin
 	reg [4:0] cnt;
-
-	if(bus_cycle_L == 3) begin
-		if(cnt != 19) begin
-			me <= 1;
-			cnt <= cnt + 1'd1;
-		end
-
-		if(h_cnt == HLAST) begin
-			me <= 1;
-			cnt <= 0;
-			if(vblank) addr <= himem ? BASE_HI : BASE;
-		end
-	end
-
-	if(bus_cycle_L == 5 && me) begin
-		line[cnt] <= { data[15:0], data[31:16], data[47:32], data[63:48] };
-		addr <= addr + 4'd4;
-		me <= 0;
-	end
-end
-
-// ---------------------------------------------------------------------------
-// --------------------------- internal state counter ------------------------
-// ---------------------------------------------------------------------------
-
-// create internal bus_cycle signal
-reg [2:0] bus_cycle_L;
-always @(posedge pclk) begin
-	reg [1:0] sync;
-	reg clk_8_enD;
+	reg [2:0] sync;
+	reg       bus_syncD;
 
 	sync <= sync << 1;
 
-	clk_8_enD <= clk_8_en;
-	if (~clk_8_enD & clk_8_en) sync <= 1;
+	bus_syncD <= bus_sync;
+	if (~bus_syncD & bus_sync) sync <= 1;
 
-	bus_cycle_L <= { bus_cycle, sync[1] };
+	if(sync[2]) begin
+		if(read) begin
+			line[cnt] <= { data[15:0], data[31:16], data[47:32], data[63:48] };
+			cnt <= cnt + 1'd1;
+			addr <= addr + 4'd4;
+			if(cnt == 19) read <= 0;
+		end
+		else if(!cnt) read <= 1;
+	end
+
+	if(!h_cnt) begin
+		cnt <= 0;
+		if(vblank) addr <= himem ? BASE_HI : BASE;
+	end
 end
 
 
 // --------------- horizontal timing -------------
 reg[10:0] h_cnt;   // 0..2047
 always@(posedge pclk) begin
-	if(h_cnt==HLAST) begin
-		// make sure a line starts with the "video" bus cyle (0)
-		// cpu has cycles 1 and 2
-		if(bus_cycle_L == 3) h_cnt<=0;
-	end else begin
-		h_cnt <= h_cnt + 1'd1;
-	end
-
+	h_cnt <= h_cnt + 1'd1;
+	if(h_cnt==HLAST) h_cnt<=0;
 	hs <= (h_cnt >= HBP+H+HFP);
 end
 

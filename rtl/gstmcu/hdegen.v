@@ -13,8 +13,8 @@ module hdegen (
     input noscroll,
     input cpal,
     input cntsc,
-    output hde1,
-    output blank_n,
+    output reg hde1,
+    output reg blank_n,
     output de
 );
 

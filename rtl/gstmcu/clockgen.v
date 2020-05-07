@@ -4,6 +4,7 @@ module clockgen (
 	input clk32,
 	input resb,
 	input porb,
+	input turbo,
 	output clk,
 	output mhz8,
 	output reg mhz8_en1,
@@ -13,15 +14,16 @@ module clockgen (
 	output time0,
 	output time1,
 	output time2,
+	output time3,
 	output time4,
-	output addrsel,
+	output time5,
+	output time6,
+	output time7,
 	output m2clock,
 	output m2clock_en_p,
 	output m2clock_en_n,
 	output clk4,
-	output latch,
-	output cycsel,
-	output cycsel_en // one clock before cycsel
+	output latch
 );
 
 assign clk          = mhz16_s;
@@ -30,15 +32,16 @@ assign mhz4         = mhz4_s;
 assign time0        = time0_s;
 assign time1        = time1_s;
 assign time2        = time2_s;
+assign time3        = time3_s;
 assign time4        = time4_s;
-assign addrsel      = time5_s;
+assign time5        = time5_s;
+assign time6        = time6_s;
+assign time7        = time7_s;
 assign m2clock      = ~time6_s;
 assign m2clock_en_p = ~time5_s &  time6_s;
 assign m2clock_en_n =  time5_s & ~time6_s;
 assign clk4         = l2_s;
 assign latch        = ~latchb_s;
-assign cycsel       = time7_s;
-assign cycsel_en    = time6_s & ~time7_s;
 
 `ifdef VERILATOR
 
@@ -111,7 +114,7 @@ always @(posedge clk32, negedge porb) begin
 		if ( mhz16_s & ~mhz8_s & l2_s) mhz4_en <= 1;
 
 		if (mhz16_s & ~l2_s & ~mhz8_s) l3_s <= ~l3_s;
-		if (~mhz16_s) time0_s <= ~l3_s;
+		if (~mhz16_s) time0_s <= turbo ? ~l2_s : ~l3_s;
 		if ( mhz16_s) time1_s <= time0_s;
 		if (~mhz16_s) time2_s <= time1_s;
 		if ( mhz16_s) time3_s <= time2_s;
@@ -120,7 +123,7 @@ always @(posedge clk32, negedge porb) begin
 		if (~mhz16_s) time6_s <= time5_s;
 		if ( mhz16_s) time7_s <= time6_s;
 
-		if (~mhz16_s) latchb_s <= ~(addrsel & ~time1_s);
+		if (~mhz16_s) latchb_s <= turbo ? ~(time2_s & ~time0_s) : ~(time5_s & ~time1_s);
 
 	end
 end

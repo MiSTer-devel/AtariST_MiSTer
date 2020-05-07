@@ -115,6 +115,7 @@ module gstmcu (
     input  st,             // Atari ST compatibilty (mask STe registers)
     input  extra_ram,      // Allow > 4MB RAM (for CPU, Video and DMA)
     input  tos192k,        // ROM2 decode for 192k TOS area (FC0000-FEFFFF)
+    input  turbo,          // double RAM speed
     input  viking_at_c0,   // RAM decode for the Viking card at 0xc00000
     input  viking_at_e8,   // RAM decode for the Viking card at 0xe80000
     output [1:0] bus_cycle // compatibility signal for existing code
@@ -562,13 +563,14 @@ wire ram2 = rs3b ? ramaaa[3] & ramaaa[2] & ramaaa[1] & ~ramaaa[0] : ~ADDR[21];
 wire ram1a, ram2a;
 wire udsl, ldsl;
 
-stlatch ram1a_l(clk32, 1'b0, !porb, clk4, ram1, ram1a);
-stlatch ram2a_l(clk32, 1'b0, !porb, clk4, ram2, ram2a);
-stlatch ldsl_l (clk32, 1'b0, !porb, clk4, ilds, ldsl);
-stlatch udsl_l (clk32, 1'b0, !porb, clk4, iuds, udsl);
+stlatch ram1a_l(clk32, 1'b0, !porb, turbo ? MHZ8 : clk4, ram1, ram1a);
+stlatch ram2a_l(clk32, 1'b0, !porb, turbo ? MHZ8 : clk4, ram2, ram2a);
+stlatch ldsl_l (clk32, 1'b0, !porb, turbo ? MHZ8 : clk4, ilds, ldsl);
+stlatch udsl_l (clk32, 1'b0, !porb, turbo ? MHZ8 : clk4, iuds, udsl);
 
-assign RAS0_N = ~( (time0 & addrselb & (~refb | (ram1a & vos))) | (~time0 & addrsel & ram1a & ~ramcycb) );
-assign RAS1_N = ~( (time0 & addrselb & (~refb | (ram2a & vos))) | (~time0 & addrsel & ram2a & ~ramcycb) );
+wire rascyc = turbo ? ~time3_t : time0_s;
+assign RAS0_N = ~( (rascyc & addrselb & (~refb | (ram1a & vos))) | (~rascyc & ~addrselb & ram1a & ~ramcycb) );
+assign RAS1_N = ~( (rascyc & addrselb & (~refb | (ram2a & vos))) | (~rascyc & ~addrselb & ram2a & ~ramcycb) );
 
 assign CAS0L_N = ~( (time2 & ~lcycsel & ram1a & vos) | (~time2 & lcycsel & ram1a & ~ramcycb & ldsl) );
 assign CAS0H_N = ~( (time2 & ~lcycsel & ram1a & vos) | (~time2 & lcycsel & ram1a & ~ramcycb & udsl) );
@@ -576,50 +578,94 @@ assign CAS1L_N = ~( (time2 & ~lcycsel & ram2a & vos) | (~time2 & lcycsel & ram2a
 assign CAS1H_N = ~( (time2 & ~lcycsel & ram2a & vos) | (~time2 & lcycsel & ram2a & ~ramcycb & udsl) );
 
 // not original signals
-assign RAM_LDS = (time0 & addrselb & (ram1a | ram2a) & vos) | (~time0 & addrsel & (ram1a | ram2a) & ~ramcycb & ldsl);
-assign RAM_UDS = (time0 & addrselb & (ram1a | ram2a) & vos) | (~time0 & addrsel & (ram1a | ram2a) & ~ramcycb & udsl);
+assign RAM_LDS = (time0 & addrselb & (ram1a | ram2a) & vos) | (~time0 & ~addrselb & (ram1a | ram2a) & ~ramcycb & ldsl);
+assign RAM_UDS = (time0 & addrselb & (ram1a | ram2a) & vos) | (~time0 & ~addrselb & (ram1a | ram2a) & ~ramcycb & udsl);
 
-////////////////////////////////////////////
+/////////// CLOCK AND TIMING GENERATOR /////////////////////////
 
-wire clk,time0,time1,time2,time4,addrsel,m2clock,m2clock_en_p,m2clock_en_n,clk4,cycsel,cycsel_en;
-wire lcycsel = cycsel;
-wire addrselb = ~addrsel;
+wire clk,clk4,m2clock,m2clock_en_p,m2clock_en_n;
+wire time0_s,time1_s,time2_s,time3_s,time4_s,time5_s,time6_s,time7_s;
+wire latch_s;
 
-assign bus_cycle = { ~time4, ~time0 };
+assign bus_cycle = { ~time4_s, ~time0_s };
 assign CLK_O = clk;
 
-clockgen clockgen (
+// normal timings
+clockgen clockgen_s (
     .clk32(clk32),
     .clk(clk),
     .resb(resb),
     .porb(porb),
+    .turbo(1'b0),
     .mhz8(MHZ8),
     .mhz8_en1(MHZ8_EN1),
     .mhz8_en2(MHZ8_EN2),
     .mhz4(MHZ4),
     .mhz4_en(MHZ4_EN),
     .clk4(clk4),
-    .time0(time0),
-    .time1(time1),
-    .time2(time2),
-    .time4(time4),
-    .addrsel(addrsel),
+    .time0(time0_s),
+    .time1(time1_s),
+    .time2(time2_s),
+    .time3(time3_s),
+    .time4(time4_s),
+    .time5(time5_s),
+    .time6(time6_s),
+    .time7(time7_s),
     .m2clock(m2clock),
     .m2clock_en_p(m2clock_en_p),
     .m2clock_en_n(m2clock_en_n),
-    .cycsel(cycsel),
-    .cycsel_en(cycsel_en),
-    .latch(LATCH)
+    .latch(latch_s)
 );
 
+wire clk4_t,time0_t,time1_t,time2_t,time3_t,time4_t,time5_t,time6_t,time7_t,latch_t;
+// turbo timings
+clockgen clockgen_t (
+    .clk32(clk32),
+    .clk(),
+    .resb(resb),
+    .porb(porb),
+    .turbo(1'b1),
+    .mhz8(),
+    .mhz8_en1(),
+    .mhz8_en2(),
+    .mhz4(),
+    .mhz4_en(),
+    .clk4(),
+    .time0(time0_t),
+    .time1(time1_t),
+    .time2(time2_t),
+    .time3(time3_t),
+    .time4(time4_t),
+    .time5(time5_t),
+    .time6(time6_t),
+    .time7(time7_t),
+    .m2clock(),
+    .m2clock_en_p(),
+    .m2clock_en_n(),
+    .latch(latch_t)
+);
+
+assign LATCH = turbo ? latch_t : latch_s;
+wire time0 = turbo ? time0_t : time0_s;
+wire time1 = turbo ? time1_t : time1_s;
+wire time2 = turbo ? time2_t : time2_s;
+wire time4 = turbo ? time4_t : time4_s;
+wire addrselb = turbo ? ~time4_t : ~time5_s;
+wire lcycsel = turbo ? time4_t : time7_s;
+wire cycsel_en = turbo ? (time3_t & ~time4_t) : (time6_s & ~time7_s);
+
+////////////////// MCU CONTROL /////////////////////////////
+
 wire stoff, sframe;
-wire refb,vidclkb,frame,vidb,viden,sndclk,snden,vos;
+wire refb,frame,vidb,viden,sndclk_loc,sload_n_loc,snden,vos;
 wire cmpcycb, ramcycb;
+wire dcyc_n_loc;
 
 mcucontrol mcucontrol (
     .clk32(clk32),
     .porb(porb),
     .resb(resb),
+    .turbo(turbo),
     .clk(clk),
     .ias(ias),
     .idev(idev),
@@ -644,14 +690,13 @@ mcucontrol mcucontrol (
     .refb(refb),
     .vidb(vidb),
     .viden(viden),
-    .vidclkb(vidclkb),
     .vos(vos),
     .snd(snd),
     .sft(sft),
     .stoff(stoff),
     .sfrep(sfrep),
     .sframe(sframe),
-    .sndclk(sndclk),
+    .sndclk(sndclk_loc),
     .snden(snden),
     .cmpcycb(cmpcycb),
     .ramcycb(ramcycb),
@@ -659,10 +704,16 @@ mcucontrol mcucontrol (
     .we_n(WE_N),
     .wdat_n(WDAT_N),
     .cmpcs_n(CMPCS_N),
-    .dcyc_n(DCYC_N),
-    .sload_n(SLOAD_N),
+    .dcyc_n(dcyc_n_loc),
+    .sload_n(sload_n_loc),
     .sint(SINT)
 );
+
+wire vidclkb = turbo ? ~(time0_s | vidb) : ~(time5_s | vidb); // vidclk is always single speed
+assign DCYC_N = dcyc_n_loc | (time5_s & turbo);
+
+wire sndclk_en = (turbo ? (~time0_s & ~time7_s) : (addrselb & time4)) & snden;
+assign SLOAD_N = sload_n_loc | (time1_s & turbo);
 
 /////// HORIZONTAL SYNC GENERATOR ////////
 wire interlace = 0; // investigate is it useful or not?
@@ -970,6 +1021,7 @@ end
 `ifdef VERILATOR
 
 wire [21:1] snd_a;
+wire sndclk = sndclk_loc | (time1_s & turbo);
 
 sndcnt sndcnt (
     .porb(porb),
@@ -983,7 +1035,6 @@ sndcnt sndcnt (
 `endif
 
 //sync to clk32
-wire sndclk_en = addrselb & time4 & snden;
 reg [21:1] snd;
 
 always @(posedge clk32) begin

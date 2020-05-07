@@ -5,7 +5,6 @@ set_global_assignment -name QIP_FILE rtl/mfp/mfp.qip
 set_global_assignment -name QIP_FILE rtl/fdc1772/fdc1772.qip
 set_global_assignment -name VERILOG_FILE rtl/acsi.v
 set_global_assignment -name VERILOG_FILE rtl/viking.v
-set_global_assignment -name VERILOG_FILE rtl/cache.v
 set_global_assignment -name VERILOG_FILE rtl/mste_ctrl.v
 set_global_assignment -name VERILOG_FILE rtl/acia.v
 set_global_assignment -name VERILOG_FILE rtl/dma.v

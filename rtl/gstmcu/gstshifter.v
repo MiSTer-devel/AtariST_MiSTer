@@ -461,7 +461,7 @@ always @(posedge clk32) begin
 		writeP <= 0;
 	end else begin
 		sload_d <= SLOAD_N;
-		if (sload_d & ~SLOAD_N) begin
+		if (~sload_d & SLOAD_N) begin
 			// data was requested when fifo wasn't full, so don't have to check it here
 			fifo[writeP] <= MDIN;
 			writeP <= writeP + 1'd1;
