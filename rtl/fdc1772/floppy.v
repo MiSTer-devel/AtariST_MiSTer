@@ -25,11 +25,12 @@ module floppy (
 	input 	     step_in,
 	input 	     step_out,
 
-	input  [9:0] sector_len,
+	input [10:0] sector_len,
 	input        sector_base,    // number of first sector on track (archie 0, dos 1)
 	input  [4:0] spt,            // sectors/track
 	input  [9:0] sector_gap_len, // gap len/sector
 	input        hd,
+	input        fm,
 
 	output 	     dclk_en,      // data clock enable
 	output [6:0] track,        // number of track under head
@@ -49,6 +50,7 @@ assign sector_hdr = (sec_state == SECTOR_STATE_HDR);
 assign sector_data = (sec_state == SECTOR_STATE_DATA);
 
 // a standard DD floppy has a data rate of 250kBit/s and rotates at 300RPM
+localparam RATESD = 20'd125000;
 localparam RATEDD = 20'd250000;
 localparam RATEHD = 20'd500000;
 localparam RPM = 10'd300;
@@ -66,11 +68,12 @@ localparam TRACKS = 8'd85;         // max allowed track
 //localparam SECTOR_BASE = 4'd1;    // number of first sector on track (archie 0, dos 1)
 
 // number of physical bytes per track
+localparam BPTSD = RATESD*60/(8*RPM);
 localparam BPTDD = RATEDD*60/(8*RPM);
 localparam BPTHD = RATEHD*60/(8*RPM);
 
 // report disk ready if it spins at full speed and head is not moving
-assign ready = select && (rate == (hd ? RATEHD : RATEDD)) && (step_busy == 0);
+assign ready = select && (rate == (fm ? RATESD : hd ? RATEHD : RATEDD)) && (step_busy == 0);
 
 // ================================================================
 // ========================= INDEX PULSE ==========================
@@ -161,7 +164,7 @@ always @(posedge clk) begin
 	   
 				SECTOR_STATE_HDR: begin
 					sec_state <= SECTOR_STATE_DATA;
-					sec_byte_cnt <= sector_len-1'd1;
+					sec_byte_cnt <= sector_len[9:0]-1'd1;
 				end
 	   
 				SECTOR_STATE_DATA: begin
@@ -195,7 +198,7 @@ always @(posedge clk) begin
 	if (byte_clk_en) begin
 		index_pulse_start <= 1'b0;
 
-		if(byte_cnt == ((hd ? BPTHD : BPTDD)-1'd1)) begin
+		if(byte_cnt == ((fm ? BPTSD : hd ? BPTHD : BPTDD)-1'd1)) begin
 			byte_cnt <= 0;
 			index_pulse_start <= 1'b1;
 		end else
@@ -240,21 +243,21 @@ always @(posedge clk) begin
 	if(motor_onD != motor_on_sel)
 		spin_up_counter <= 32'd0;
 	else begin
-		spin_up_counter <= spin_up_counter + (hd ? RATEHD : RATEDD);
+		spin_up_counter <= spin_up_counter + (fm ? RATESD : hd ? RATEHD : RATEDD);
       
 		if(motor_on_sel) begin
 			// spinning up
 			if(spin_up_counter > SPIN_UP_CLKS) begin
-				if(rate < (hd ? RATEHD : RATEDD))
+				if(rate < (fm ? RATESD : hd ? RATEHD : RATEDD))
 					rate <= rate + 32'd1;
-				spin_up_counter <= spin_up_counter - (SPIN_UP_CLKS - (hd ? RATEHD : RATEDD));
+				spin_up_counter <= spin_up_counter - (SPIN_UP_CLKS - (fm ? RATESD : hd ? RATEHD : RATEDD));
 			end
 		end else begin
 			// spinning down
 			if(spin_up_counter > SPIN_DOWN_CLKS) begin
 				if(rate > 0)
 					rate <= rate - 32'd1;
-				spin_up_counter <= spin_up_counter - (SPIN_DOWN_CLKS - (hd ? RATEHD : RATEDD));
+				spin_up_counter <= spin_up_counter - (SPIN_DOWN_CLKS - (fm ? RATESD : hd ? RATEHD : RATEDD));
 			end
 		end // else: !if(motor_on)
 	end // else: !if(motor_onD != motor_on)

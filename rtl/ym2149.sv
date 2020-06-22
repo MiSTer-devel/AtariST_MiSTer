@@ -52,7 +52,6 @@ module ym2149
 	output [9:0] AUDIO_R,   // Right output
 
 	input        SEL,
-	input        MODE,
 	input        STEREO,
 	
 	output [5:0] ACTIVE,
@@ -151,7 +150,7 @@ always @(posedge CLK) begin
 
 	if(CE) begin
 		if (ena_div_noise) begin
-			if (!ymreg[6][4:0] || noise_gen_cnt >= ymreg[6][4:0] - 1'd1) begin
+			if (!ymreg[6][4:0] || (noise_gen_cnt >= ymreg[6][4:0] - 1'd1)) begin
 				noise_gen_cnt <= 0;
 				poly17 <= {(poly17[0] ^ poly17[2] ^ !poly17), poly17[16:1]};
 			end else begin
@@ -179,16 +178,11 @@ always @(posedge CLK) begin
 	
 		for (i = 1; i <= 3; i = i + 1) begin
 			if(ena_div) begin
-				if (tone_gen_freq[i]) begin
-					if (tone_gen_cnt[i] >= (tone_gen_freq[i] - 1'd1)) begin
-						tone_gen_cnt[i] <= 0;
-						tone_gen_op[i]  <= ~tone_gen_op[i];
-					end else begin
-						tone_gen_cnt[i] <= tone_gen_cnt[i] + 1'd1;
-					end
-				end else begin
-					tone_gen_op[i] <= ~ymreg[7][i];
+				if (!tone_gen_freq[i] || (tone_gen_cnt[i] >= (tone_gen_freq[i] - 1'd1))) begin
 					tone_gen_cnt[i] <= 0;
+					tone_gen_op[i]  <= ~tone_gen_op[i];
+				end else begin
+					tone_gen_cnt[i] <= tone_gen_cnt[i] + 1'd1;
 				end
 			end
 		end

@@ -322,9 +322,9 @@ register gamecart_r(clk32, 1'b0, ~(resb & porb), irwb & cartsel & iuds, id[8], g
 wire noscroll;
 stlatch noscroll_l(clk32, ~(resb & porb), 1'b0, scrlsel, ~|id[3:0], noscroll);
 wire mde1;
-register mde1_r(clk32, 1'b0, ~(resb & porb), ~(irwb & mdesel & iuds), id[9], mde1);
+register mde1_r(clk32, 1'b0, ~(resb & porb), ~(irwb & mdesel & iuds) ^ st, id[9], mde1);
 wire mde0;
-register mde0_r(clk32, 1'b0, ~(resb & porb), ~(irwb & mdesel & iuds), id[8], mde0);
+register mde0_r(clk32, 1'b0, ~(resb & porb), ~(irwb & mdesel & iuds) ^ st, id[8], mde0);
 wire pal;
 register pal_r(clk32, 1'b0, ~(resb & porb), ~(irwb & syncsel & iuds), id[9], pal);
 wire ntsc = ~pal;
@@ -716,7 +716,6 @@ wire sndclk_en = (turbo ? (~time0_s & ~time7_s) : (addrselb & time4)) & snden;
 assign SLOAD_N = sload_n_loc | (time1_s & turbo);
 
 /////// HORIZONTAL SYNC GENERATOR ////////
-wire interlace = 0; // investigate is it useful or not?
 
 wire ivsync = ~iivsync;
 wire vertclk;
@@ -724,6 +723,7 @@ wire vertclk;
 // async
 `ifdef VERILATOR
 wire iihsync_a;
+wire interlace = 0; // investigate is it useful or not?
 
 hsyncgen hsyncgen (
     .m2clock(m2clock),
@@ -740,8 +740,10 @@ hsyncgen hsyncgen (
 
 // sync to clk32
 reg  [6:0] hsc;
-wire [6:0] hsc_load_val = { mde1 | interlace, 2'b00, mde1, 1'b0, ntsc & ~mde1, ~(ntsc & ~mde1) };
+wire [6:0] hsc_load_val_ste = mde1 ? 7'h49 : ntsc ? 7'h2 : 7'h1;
+wire [6:0] hsc_load_val_st  = mde1 ? 7'h48 : ntsc ? 7'h1 : 7'h0;
 reg        hsc_load; // vertclkb
+wire       hsc_reload = (hsc == 127);
 
 reg        iihsync;
 wire [6:0] ihsync_set = mde1 ? 7'd121 : 7'd101;
@@ -754,9 +756,10 @@ always @(posedge clk32, negedge resb) begin
 		iihsync <= 1;
 	end else if (m2clock_en_p) begin
 		hsc <= hsc + 1'd1;
-		if (hsc == 7'd127 | hsc_load) begin
+		if (hsc_reload | hsc_load) begin
 			hsc_load <= ~hsc_load;
-			hsc <= hsc_load_val;
+			if (st & ~hsc_load) hsc <= hsc_load_val_st;
+			if (~st) hsc <= hsc_load_val_ste;
 		end
 		if (hsc == ihsync_set) iihsync <= 0;
 		if (hsc == ihsync_res) iihsync <= 1;
@@ -871,7 +874,7 @@ vsyncgen vsyncgen (
 `endif
 
 // sync to clk32
-wire       vertclk_en = hsc_load & m2clock_en_p;
+wire       vertclk_en = (st ? hsc_reload : hsc_load) & m2clock_en_p;
 reg  [9:0] vsc;
 wire [9:0] vsc_load_val_ste = mde1 ? (MDE60 ? 10'd939 : 9'd12) : cpal ? 10'd200 : 10'd250;
 wire [9:0] vsc_load_val_st  = mde1 ? (MDE60 ? 10'd939 : 9'd11) : cpal ? 10'd199 : 10'd249;

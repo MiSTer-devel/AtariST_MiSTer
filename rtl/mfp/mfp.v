@@ -116,7 +116,6 @@ wire [3:0] timera_ctrl_o;
 
 mfp_timer timer_a (
 	.CLK        ( clk                      ),
-	.CLK_EN     ( clk_en                   ),
 	.DS         ( ds                       ),
 	.RST        ( reset                    ),
 	.CTRL_I     ( din[4:0]                 ),
@@ -137,7 +136,6 @@ wire [3:0] timerb_ctrl_o;
 
 mfp_timer timer_b (
 	.CLK        ( clk                      ),
-	.CLK_EN     ( clk_en                   ),
 	.DS         ( ds                       ),
 	.RST        ( reset                    ),
 	.CTRL_I     ( din[4:0]                 ),
@@ -158,7 +156,6 @@ wire [3:0] timerc_ctrl_o;
 
 mfp_timer timer_c (
 	.CLK        ( clk                      ),
-	.CLK_EN     ( clk_en                   ),
 	.DS         ( ds                       ),
 	.RST        ( reset                    ),
 	.CTRL_I     ( {2'b00, din[6:4]}        ),
@@ -177,7 +174,6 @@ wire       tdo;
 
 mfp_timer timer_d (
 	.CLK        ( clk                      ),
-	.CLK_EN     ( clk_en                   ),
 	.DS         ( ds                       ),
 	.RST        ( reset                    ),
 	.CTRL_I     ( {2'b00, din[2:0]}        ),

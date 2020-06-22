@@ -66,6 +66,7 @@ module emu
 	// b[0]: osd button
 	output  [1:0] BUTTONS,
 
+	input         CLK_AUDIO, // 24.576 MHz
 	output [15:0] AUDIO_L,
 	output [15:0] AUDIO_R,
 	output        AUDIO_S, // 1 - signed audio samples, 0 - unsigned
@@ -319,17 +320,17 @@ always @(posedge clk_32) begin
 	reg old_vs, old_hs;
 	reg  [11:0] hcnt,vcnt;
 	
-	old_vs <= vsync_n;
-	if(old_vs & ~vsync_n) begin
-		mode <= {mono ? mde60 : narrow_brd, mono, ~mono & pal};
-		vcnt <= 0;
-	end
-	
 	hcnt <= hcnt + 1'd1;
 	old_hs <= hsync_n;
 	if(~old_hs & hsync_n) begin
 		hcnt <= 0;
 		vcnt <= vcnt + 1'd1;
+	end
+
+	old_vs <= vsync_n;
+	if(old_vs & ~vsync_n) begin
+		mode <= {mono ? mde60 : narrow_brd, mono, ~mono & pal};
+		vcnt <= 0;
 	end
 
 	if(hcnt == hstart[mode]) begin
@@ -445,28 +446,29 @@ wire MEM4M   = (status[3:1] == 3'd3);
 wire MEM8M   = (status[3:1] == 3'd4);
 wire MEM14M  = (status[3:1] == 3'd5);
 
-// registered reset signals
+// synchronized reset signal
 reg reset;
-reg peripheral_reset;
 always @(posedge clk_32) begin
+	reg m8_en;
 	reg [7:0] cnt = 0;
 
+	m8_en <= mhz8_en1;
+	if(m8_en) reset <= 0;
+	
 	if(~&cnt) begin
 		reset <= 1;
 		cnt <= cnt + 1'd1;
 	end
-	else if(cpu_precycle && mhz8_en1) reset <= 0;
-
 	if(RESET | buttons[1] | status[0]) cnt <= 0;
-
-	peripheral_reset <= reset | ~cpu_reset_n_o;
 end
+
+reg peripheral_reset;
+always @(posedge clk_32) peripheral_reset <= reset | ~cpu_reset_n_o;
 
 reg ikbd_reset;
 always @(posedge clk_2) ikbd_reset <= reset | ~cpu_reset_n_o;
 
 // MCU signals
-
 wire        mhz4, mhz4_en, clk16, clk16_en = ~clk16;
 wire        mcu_dtack_n;
 wire        hsync_n, vsync_n;
@@ -919,8 +921,6 @@ acia midi_acia (
 /* ------------------------------------------------------------------------------ */
 
 wire [7:0] snd_data_out;
-wire [7:0] ym_a_out, ym_b_out, ym_c_out;
-
 wire [9:0] ym_audio_out_l;
 wire [9:0] ym_audio_out_r;
 
@@ -952,8 +952,6 @@ ym2149 ym2149 (
 	.AUDIO_R     ( ym_audio_out_r),
 	.BDIR        ( sndir         ),
 	.BC          ( sndcs         ),
-	.MODE        ( 0             ),
-	.SEL         ( 0             ),
 	.STEREO      ( psg_stereo    ),
 	.IOA_in      ( port_a_in     ),
 	.IOA_out     ( port_a_out    ),
@@ -962,7 +960,6 @@ ym2149 ym2149 (
 );
 
 // audio output processing
-
 wire [15:0] audio_mix_l = {1'b0, ym_audio_out_l, ym_audio_out_l[9:5]} + {1'b0, dma_snd_l, dma_snd_l[7:1]};
 wire [15:0] audio_mix_r = {1'b0, ym_audio_out_r, ym_audio_out_r[9:5]} + {1'b0, dma_snd_r, dma_snd_r[7:1]};
 
