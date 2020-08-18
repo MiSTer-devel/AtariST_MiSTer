@@ -45,7 +45,7 @@ module mfp (
 // ---------------- mfp uart ------------
 
 reg [3:0] cen;
-always @(posedge clk) cen <= clk_en;
+always @(posedge clk) cen <= {cen[2:0],clk_en};
 
 wire [7:0] uart_dout;
 
