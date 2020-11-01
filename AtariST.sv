@@ -41,8 +41,8 @@ module emu
 	output        CE_PIXEL,
 
 	//Video aspect ratio for HDMI. Most retro systems have ratio 4:3.
-	output  [7:0] VIDEO_ARX,
-	output  [7:0] VIDEO_ARY,
+	output [11:0] VIDEO_ARX,
+	output [11:0] VIDEO_ARY,
 
 	output  [7:0] VGA_R,
 	output  [7:0] VGA_G,
@@ -141,8 +141,8 @@ assign LED_DISK  = 0;
 assign LED_POWER = 0;
 assign BUTTONS   = 0;
 
-assign VIDEO_ARX = wide ? 8'd16 : viking_active ? 8'd5 : 8'd4;
-assign VIDEO_ARY = wide ? 8'd9  : viking_active ? 8'd4 : 8'd3;
+assign VIDEO_ARX = (!ar) ? (viking_active ? 8'd5 : 8'd4) : (ar - 1'd1);
+assign VIDEO_ARY = (!ar) ? (viking_active ? 8'd4 : 8'd3) : 8'd0;
 
 assign {DDRAM_CLK, DDRAM_BURSTCNT, DDRAM_ADDR, DDRAM_DIN, DDRAM_BE, DDRAM_RD, DDRAM_WE} = 0;
 assign {SD_SCK, SD_MOSI, SD_CS} = 'Z;
@@ -435,7 +435,7 @@ wire [1:0] fdc_wp = status[7:6];
 wire       mono_monitor = status[8];
 wire       narrow_brd = status[29];
 wire       mde60 = status[30];
-wire       wide = status[9];
+wire [1:0] ar = {status[31],status[9]};
 wire       uart = status[26];
 
 // RAM size selects
