@@ -511,10 +511,6 @@ wire   bgack_n   = BGACK_N_I & BGACK_N_O;
 assign BGACK_N_O = ixdmab;
 assign BR_N_O    = ~br_o;
 
-wire   p9033_i   = (ready & ~ias) | (p9033 & ias);
-wire   ixdma_i   = ixdma | (~ias & ~BG_N);
-wire   br_o_i    = (br_n | br_o) & (BG_N | br_o) & p9033 & bgack_n;
-
 // asunc
 `ifdef VERILATOR
 
@@ -543,13 +539,27 @@ end
 `endif
 
 // sync to clk32
-wire  ixdma;   // p9021
-wire  p9033;
-wire  br_o;    // p9011
+reg    ixdma;   // p9021
+reg    p9033;
+reg    br_o;    // p9011
 
-register p9033_r(clk32, 1'b0, ~(porb & resb), MHZ8, p9033_i, p9033);
-register br_o_r(clk32, 1'b0, ~(porb & resb), MHZ8, br_o_i, br_o);
-register ixdma_r(clk32, 1'b0, !p9033, ~MHZ8, ixdma_i, ixdma);
+wire   p9033_i   = (ready & ~ias) | (p9033 & ias);
+wire   ixdma_i   = ixdma | (~ias & ~BG_N);
+wire   br_o_i    = (br_n | br_o) & (BG_N | br_o) & p9033 & bgack_n;
+
+always @(posedge clk32, negedge porb, negedge resb) begin
+	if (!porb || !resb) begin
+		p9033 <= 0;
+		br_o <= 0;
+		ixdma <= 0;
+	end else if (MHZ8_EN1) begin
+		p9033 <= p9033_i;
+		br_o <= br_o_i;
+		if (!p9033_i) ixdma <= 0;
+	end else if (MHZ8_EN2) begin
+		ixdma <= ixdma_i;
+	end
+end
 
 ///////// DRAM SIZE/CONFIGURATION DECODES ////////
 
