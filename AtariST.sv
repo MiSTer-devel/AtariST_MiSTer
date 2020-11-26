@@ -52,6 +52,7 @@ module emu
 	output        VGA_DE,    // = ~(VBlank | HBlank)
 	output        VGA_F1,
 	output [1:0]  VGA_SL,
+	output        VGA_SCALER, // Force VGA scaler
 
 	output        LED_USER,  // 1 - ON, 0 - OFF.
 
@@ -140,6 +141,7 @@ assign LED_USER  = ~&floppy_sel;
 assign LED_DISK  = 0;
 assign LED_POWER = 0;
 assign BUTTONS   = 0;
+assign VGA_SCALER= 0;
 
 assign VIDEO_ARX = (!ar) ? (viking_active ? 8'd5 : 8'd4) : (ar - 1'd1);
 assign VIDEO_ARY = (!ar) ? (viking_active ? 8'd4 : 8'd3) : 8'd0;
