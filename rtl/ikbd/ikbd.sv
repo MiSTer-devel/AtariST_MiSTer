@@ -11,6 +11,7 @@ module ikbd (
 
 	input [10:0] ps2_key,
 	input [24:0] ps2_mouse,
+	input  [7:0] ps2_mouse_ext,
 
 	// ikbd rx/tx to be connected to the 6850
 	output       tx,
@@ -37,6 +38,7 @@ ps2 ps2 (
 	.matrix(matrix),
 
 	.ps2_mouse(ps2_mouse),
+	.ps2_mouse_ext(ps2_mouse_ext),
 	.mouse_atari(mouse_atari),
 	.joy_port_toggle(joy_port_toggle)
 );

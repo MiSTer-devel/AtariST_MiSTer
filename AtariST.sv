@@ -199,6 +199,7 @@ wire  [7:0] ioctl_index;
 wire [20:0] joy0,joy1,joy2,joy3;
 wire [10:0] ps2_key;
 wire [24:0] ps2_mouse;
+wire  [7:0] ps2_mouse_ext;
 
 wire [21:0] gamma_bus;
 
@@ -219,6 +220,7 @@ hps_io #(.STRLEN($size(CONF_STR)>>3), .WIDE(1), .VDNUM(2)) hps_io
 	.joystick_3(joy3),
 	.ps2_key(ps2_key),
 	.ps2_mouse(ps2_mouse),
+	.ps2_mouse_ext(ps2_mouse_ext),
 
 	.status(status),
 	.info_req(info_req),
@@ -846,6 +848,7 @@ ikbd ikbd (
 
 	.ps2_key(ps2_key),
 	.ps2_mouse(ps2_mouse),
+	.ps2_mouse_ext(ps2_mouse_ext),
 
 	.tx(ikbd_tx),
 	.rx(ikbd_rx),
