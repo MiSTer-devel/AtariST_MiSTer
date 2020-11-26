@@ -13,17 +13,17 @@ module ikbd (
 	input [24:0] ps2_mouse,
 
 	// ikbd rx/tx to be connected to the 6850
-	output 	    tx,
-	input 	    rx,
+	output       tx,
+	input        rx,
 
 	// caps lock output. This is present in the schematics
 	// but it is not implemented nor used in the Atari ST
-	output 	    caps_lock,
+	output       caps_lock,
 
 	// digital joystick with one fire button (FRLDU)
 	input  [4:0] joystick1,  // regular joystick
-	input  [4:0] joystick0,  // joystick that can replace mouse
-	output 	    joy_port_toggle // signal to toggle between normal and STe joy ports
+	input  [5:0] joystick0,  // joystick that can replace mouse
+	output       joy_port_toggle // signal to toggle between normal and STe joy ports
 );
 
 wire [7:0] matrix[14:0];   
@@ -43,11 +43,11 @@ ps2 ps2 (
 
 // keep track of mouse/joystick0 events to switch between them
 reg 	     mouse_active;   
-reg [4:0] last_joystick0;
+reg [5:0] last_joystick0;
 reg [5:0] last_mouse_atari;   
 
 // switch between mouse and joystick
-wire [5:0] mouse_joy = mouse_active?mouse_atari:{1'b0,joystick0};   
+wire [5:0] mouse_joy = mouse_active?mouse_atari:joystick0;
 
 // detect mouse and joystick activity
 always @(posedge clk) begin
