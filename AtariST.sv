@@ -131,9 +131,7 @@ assign ADC_BUS  = 'Z;
 
 assign UART_DTR = UART_DSR;
 assign UART_RTS = uart ? usart_rts : UART_CTS;
-assign UART_TXD = uart ? usart_so  : midi_tx;
-
-assign USER_OUT  = '1;
+assign UART_TXD = uart ? usart_so  : (midi_tx & ~mt32_use) ;
 
 assign AUDIO_MIX = 0;
 
@@ -168,18 +166,24 @@ wire init = ~pll_locked | RESET;
 ////////////////////////////  HPS I/O  //////////////////////////////////
 
 `include "build_id.v"
-parameter CONF_STR = {
-	"AtariST;;",
+parameter CONF_STR1 = {
+	"AtariST;UART19200:9600:4800:2400:1200,MIDI;",
 	"J,A,B,C,Option,Pause,#,*,0,1,2,3,4/L,5,6/R,7/Z,8/Y,9/X;",
 	"jn,A,B,X,Select,Start,,,,,,,L,,R;",
 	"I,",
 	"ST joysticks,",
-	"STe joysticks;",
+	"STe joysticks,",
+	"MT32-pi: "
+};
+
+localparam CONF_STR2 =
+{
+	";",
 	"V,v",`BUILD_DATE
 };
 
 wire  [1:0] buttons;
-wire [31:0] status;
+wire [63:0] status;
 wire        forced_scandoubler;
 wire [31:0] sd_lba;
 wire  [1:0] sd_rd;
@@ -205,11 +209,13 @@ wire  [7:0] ps2_mouse_ext;
 
 wire [21:0] gamma_bus;
 
-hps_io #(.STRLEN($size(CONF_STR)>>3), .WIDE(1), .VDNUM(2)) hps_io
+wire  [7:0] uart_mode;
+
+hps_io #(.STRLEN(($size(CONF_STR1) + $size(mt32_curmode) + $size(CONF_STR2))>>3), .WIDE(1), .VDNUM(2)) hps_io
 (
 	.clk_sys(clk_32),
 	.HPS_BUS(HPS_BUS),
-	.conf_str(CONF_STR),
+	.conf_str({CONF_STR1, mt32_curmode, CONF_STR2}),
 
 	.buttons(buttons),
 	.forced_scandoubler(forced_scandoubler),
@@ -225,6 +231,7 @@ hps_io #(.STRLEN($size(CONF_STR)>>3), .WIDE(1), .VDNUM(2)) hps_io
 	.ps2_mouse_ext(ps2_mouse_ext),
 
 	.status(status),
+	.status_menumask({mt32_cfg,mt32_available}),
 	.info_req(info_req),
 	.info(info),
 
@@ -247,7 +254,7 @@ hps_io #(.STRLEN($size(CONF_STR)>>3), .WIDE(1), .VDNUM(2)) hps_io
 	.img_readonly(img_readonly),
 	.img_size(img_size),
 	
-	.uart_mode(16'b000_11111_000_11111),
+	.uart_mode(uart_mode),
 
 	.EXT_BUS(EXT_BUS)
 );
@@ -311,7 +318,7 @@ always @(posedge clk_32) begin
 	end
 end
 
-//////////////////////////////////////////////////////////////////////////////////
+/////////////////////////////  A/V output  ///////////////////////////////////////
 
 wire [11:0] hstart[8] = '{ 145, 161, 148, 0,  193, 257, 148, 0};
 wire [11:0] hend[8]   = '{1841,1841, 788, 0, 1793,1745, 788, 0};
@@ -403,20 +410,147 @@ always @(posedge clk_96) begin
 	end
 end
 
-assign VGA_R     = {stvid_r, stvid_r};
-assign VGA_G     = {stvid_g, stvid_g};
-assign VGA_B     = {stvid_b, stvid_b};
-assign VGA_HS    = stvid_hs;
-assign VGA_VS    = stvid_vs;
-assign VGA_DE    = ~{stvid_hbl | stvid_vbl};
-assign CE_PIXEL  = stvid_ce;
 assign CLK_VIDEO = clk_96;
+assign CE_PIXEL  = stvid_ce;
 assign VGA_SL    = (~mode[1] & ~viking_active) ? scanlines : 2'b00;
 assign VGA_F1    = 0;
+wire   [7:0] R   = {stvid_r, stvid_r};
+wire   [7:0] G   = {stvid_g, stvid_g};
+wire   [7:0] B   = {stvid_b, stvid_b};
 
-assign AUDIO_S = 0;
-assign AUDIO_L = audio_mix_l;
-assign AUDIO_R = audio_mix_r;
+gamma_fast gamma
+(
+	.clk_vid(CLK_VIDEO),
+	.ce_pix(CE_PIXEL),
+
+	.gamma_bus(gamma_bus),
+
+	.HSync(stvid_hs),
+	.VSync(stvid_vs),
+	.DE(~{stvid_hbl | stvid_vbl}),
+	
+	.RGB_in(mt32_lcd ? {{2{mt32_lcd_pix}},R[7:2], {2{mt32_lcd_pix}},G[7:2], {2{mt32_lcd_pix}},B[7:2]} : {R,G,B}),
+
+	.HSync_out(VGA_HS),
+	.VSync_out(VGA_VS),
+	.DE_out(VGA_DE),
+	.RGB_out({VGA_R,VGA_G,VGA_B})
+);
+
+/* ------------------------------------------------------------------------------ */
+
+reg [15:0] aud_l, aud_r;
+always @(posedge CLK_AUDIO) begin
+	reg [15:0] old_l0, old_l1, old_r0, old_r1;
+	
+	old_l0 <= audio_mix_l;
+	old_l1 <= old_l0;
+	if(old_l0 == old_l1) aud_l <= old_l1;
+
+	old_r0 <= audio_mix_r;
+	old_r1 <= old_r0;
+	if(old_r0 == old_r1) aud_r <= old_r1;
+end
+
+reg [15:0] out_l, out_r;
+always @(posedge CLK_AUDIO) begin
+	reg [16:0] tmp_l, tmp_r;
+
+	tmp_l <= {2'b00, aud_l[15:1]} + (mt32_mute ? 17'd0 : {mt32_i2s_l[15],mt32_i2s_l});
+	tmp_r <= {2'b00, aud_r[15:1]} + (mt32_mute ? 17'd0 : {mt32_i2s_r[15],mt32_i2s_r});
+
+	// clamp the output
+	out_l <= (^tmp_l[16:15]) ? {tmp_l[16], {15{tmp_l[15]}}} : tmp_l[15:0];
+	out_r <= (^tmp_r[16:15]) ? {tmp_r[16], {15{tmp_r[15]}}} : tmp_r[15:0];
+end
+
+assign AUDIO_S = 1;
+assign AUDIO_L = out_l;
+assign AUDIO_R = out_r;
+
+////////////////////////////  MT32pi  ////////////////////////////////// 
+
+wire        mt32_reset    = status[32] | reset;
+wire        mt32_disable  = status[33];
+wire        mt32_mode_req = status[34];
+wire  [1:0] mt32_rom_req  = status[36:35];
+wire  [7:0] mt32_sf_req   = status[39:37];
+wire  [1:0] mt32_info     = status[41:40];
+
+wire [15:0] mt32_i2s_r, mt32_i2s_l;
+wire  [7:0] mt32_mode, mt32_rom, mt32_sf;
+wire        mt32_lcd_en, mt32_lcd_pix, mt32_lcd_update;
+wire        midi_rx;
+
+wire mt32_newmode;
+wire mt32_available;
+wire mt32_use  = mt32_available & ~mt32_disable;
+wire mt32_mute = mt32_available &  mt32_disable;
+
+mt32pi mt32pi
+(
+	.*,
+	.reset(mt32_reset),
+	.CE_PIXEL(mt32_ce_pix),
+	.midi_tx(midi_tx | mt32_mute)
+);
+
+wire [87:0] mt32_curmode = {(mt32_mode == 'hA2)                  ? {"SoundFont ", {5'b00110, mt32_sf[2:0]}} :
+                            (mt32_mode == 'hA1 && mt32_rom == 0) ?  "   MT-32 v1" :
+                            (mt32_mode == 'hA1 && mt32_rom == 1) ?  "   MT-32 v2" :
+                            (mt32_mode == 'hA1 && mt32_rom == 2) ?  "     CM-32L" :
+                                                                    "    Unknown" };
+
+wire  [4:0] mt32_cfg = (mt32_mode == 'hA2) ? {mt32_sf[2:0],  2'b10} :
+                       (mt32_mode == 'hA1) ? {mt32_rom[1:0], 2'b01} : 5'd0;
+
+reg mt32_lcd_on;
+always @(posedge CLK_VIDEO) begin
+	int to;
+	reg old_update;
+
+	old_update <= mt32_lcd_update;
+	if(to) to <= to - 1;
+
+	if(mt32_info == 2) mt32_lcd_on <= 1;
+	else if(mt32_info != 3) mt32_lcd_on <= 0;
+	else begin
+		if(!to) mt32_lcd_on <= 0;
+		if(old_update ^ mt32_lcd_update) begin
+			mt32_lcd_on <= 1;
+			to <= 96000000 * 2;
+		end
+	end
+end
+
+wire mt32_lcd = mt32_lcd_on & mt32_lcd_en;
+
+reg mt32_ce_pix;
+always @(posedge CLK_VIDEO) begin
+	reg [1:0] div;
+
+	div <= div + 1'd1;
+	if(div == 2) div <= 0;
+
+	mt32_ce_pix <= 0;
+	if(!div) mt32_ce_pix <= ce_pix;
+end
+
+
+/* ------------------------------------------------------------------------------ */
+
+reg [7:0] info;
+reg       info_req = 0;
+always @(posedge clk_32) begin
+	reg old_mode;
+	reg old_mt32mode;
+
+	old_mt32mode <= mt32_newmode;
+	old_mode <= joy_port_ste;
+	info_req <= (old_mode ^ joy_port_ste) || ((old_mt32mode ^ mt32_newmode) && (mt32_info == 1));
+
+	info <= (old_mode ^ joy_port_ste) ? (joy_port_ste ? 8'd2 : 8'd1) : 8'd3;
+end
 
 
 //////////////////////////////////////////////////////////////////////////////////
@@ -440,7 +574,7 @@ wire       mono_monitor = status[8];
 wire       narrow_brd = status[29];
 wire       mde60 = status[30];
 wire [1:0] ar = {status[31],status[9]};
-wire       uart = status[26];
+wire       uart = (uart_mode < 3);
 
 // RAM size selects
 wire MEM512K = (status[3:1] == 3'd0);
@@ -860,16 +994,6 @@ ikbd ikbd (
 	.joy_port_toggle(joy_port_ste)
 );
 
-reg [7:0] info;
-reg       info_req = 0;
-always @(posedge clk_32) begin
-	reg old_mode;
-	info <= joy_port_ste ? 8'd2 : 8'd1;
-	
-	old_mode <= joy_port_ste;
-	info_req <= old_mode ^ joy_port_ste;
-end
-
 /* ------------------------------------------------------------------------------ */
 /* ------------------------------- keyboard ACIA -------------------------------- */
 /* ------------------------------------------------------------------------------ */
@@ -914,8 +1038,8 @@ acia midi_acia (
 	.dout     ( midi_acia_data_out ),
 	.irq      ( midi_acia_irq      ),
 
-	.rx       ( UART_RXD           ),
-	.tx       ( midi_tx            ),
+	.rx       ( uart ? midi_rx : UART_RXD ),
+	.tx       ( midi_tx                   ),
 
 	// redirected midi interface
 	.dout_strobe ( midi_out_strobe )
