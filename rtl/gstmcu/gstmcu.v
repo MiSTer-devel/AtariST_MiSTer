@@ -81,6 +81,7 @@ module gstmcu (
     output CAS1H_N,
     output RAM_LDS, // RAM byte selects
     output RAM_UDS, // CAS signals come a bit late for a fast SDRAM controller
+    output REF, // indicates a refresh cycle
     output VPA_N,
     output MFPCS_N,
     output SNDIR,
@@ -134,6 +135,8 @@ always @(*) begin
         4'b1?01: ADDR = vid_reg; // VIDEO ADDR
     endcase
 end
+
+assign REF = addrselb & ~refb;
 
 /////// BUS INTERFACE //////////
 
@@ -293,8 +296,8 @@ assign DOUT[ 7:0] = vid_o & snd_o & dma_o;
 
 /////// SYNC and INTERRUPT INTERFACE ///////
 
-assign HSYNC_N = iihsync;
-assign VSYNC_N = iivsync;
+assign HSYNC_N = resb & iihsync;
+assign VSYNC_N = resb & iivsync;
 assign IPL0_N = 1'b1;
 assign IPL1_N = MFPINT_N & (hintb | ~vintb);
 assign IPL2_N = MFPINT_N & vintb;
@@ -329,8 +332,18 @@ wire pal;
 register pal_r(clk32, 1'b0, ~(resb & porb), ~(irwb & syncsel & iuds), id[9], pal);
 wire ntsc = ~pal;
 assign PAL = pal;
-wire drw;
-register drw_r(clk32, ~(resb & porb), 1'b0, dmadirb, id[8], drw);
+
+reg drw;
+always @(posedge clk32, negedge resb, negedge porb) begin : drw_block
+	reg dmadirb_d;
+
+	if (!porb) drw <= 1;
+	else if (!resb) drw <= 1;
+	else begin
+		dmadirb_d <= dmadirb;
+		if (~dmadirb_d & dmadirb) drw <= id[8];
+	end
+end
 
 wire penr = iuds & ilds & irwz & pensel;
 wire padr = ilds & irwz & padsel;
@@ -492,11 +505,23 @@ end
 wire fcsackb;
 register fcsackb_r(clk32, ~(porb & ias), 1'b0, ready, ifcsb, fcsackb);
 
-wire dtack_d, p8001_s, p8008_s, p8010_s;
-register dtack_d_r(clk32, 1'b0, !porb, ~MHZ8, dtack & ~DTACK_N_I, dtack_d); // p8006
-register p8001_r(clk32, 1'b0, ~(porb & ixdma), MHZ8, p8008_s, p8001_s);
-register p8008_r(clk32, 1'b0, ~(porb & ixdma), MHZ8, p8001_s ^ ~(p8008_s & p8001_s & ~dtack_d), p8008_s);
-register p8010_r(clk32, ~(porb & ixdma), 1'b0, ~MHZ8, ~(p8001_s & p8008_s), p8010_s);
+reg dtack_d;
+always @(posedge clk32, negedge porb) begin
+	if (!porb) dtack_d <= 0;
+	else if (MHZ8_EN2) dtack_d <= dtack & ~DTACK_N_I;
+end
+
+reg p8001_s, p8008_s, p8010_s;
+always @(posedge clk32, negedge porb, negedge ixdma) begin
+	if (!porb) {p8001_s, p8008_s, p8010_s} <= 3'b001;
+	else if (!ixdma) {p8001_s, p8008_s, p8010_s} <= 3'b001;
+	else if (MHZ8_EN1) begin
+		p8001_s <= p8008_s;
+		p8008_s <= p8001_s ^ ~(p8008_s & p8001_s & ~dtack_d);
+	end else if (MHZ8_EN2) begin
+		p8010_s <= ~(p8001_s & p8008_s);
+	end
+end
 
 wire   aso   = p8008_s | ~p8010_s;
 wire   dso   = (p8008_s & p8001_s) | (p8008_s & drw) | ~p8010_s;
@@ -727,7 +752,8 @@ assign SLOAD_N = sload_n_loc | (time1_s & turbo);
 
 /////// HORIZONTAL SYNC GENERATOR ////////
 
-wire ivsync = ~iivsync;
+wire ihsync = ~(iihsync & resb);
+wire ivsync = ~(iivsync & resb);
 wire vertclk;
 
 // async
@@ -826,8 +852,8 @@ always @(posedge clk32, negedge porb) begin
 		{ hde_set_r1, hde_set_r2, hde_set_r3, hde_set_r4 } <= 0;
 		hde <= 0;
 	end else begin
-		if ((m2clock_en_p && hsc == ihsync_set) || ~iihsync) begin
-			// sync equivalent of ~iihsync async reset
+		if ((m2clock_en_p && hsc == ihsync_set) || ihsync) begin
+			// sync equivalent of ihsync async set
 			hdec <= 0;
 			hblank <= 0;
 
@@ -954,8 +980,8 @@ always @(posedge clk32, negedge porb) begin
 		vde <= 0;
 		vblank <= 0;
 	end else begin
-		if ((vertclk_en & vsc == ivsync_set) | ~iivsync) begin
-			// sync equivalent of async ~iivsync reset
+		if ((vertclk_en & vsc == ivsync_set) | ivsync) begin
+			// sync equivalent of async ivsync set
 			vdec <= 0;
 			vde <= 0;
 			vblank <= 0;

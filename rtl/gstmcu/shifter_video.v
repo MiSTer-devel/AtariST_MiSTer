@@ -26,19 +26,31 @@ end
 // shift array
 reg [15:0] shdout0, shdout1, shdout2, shdout3;
 reg [15:0] shcout0, shcout1, shcout2, shcout3;
-always @(negedge clk32) begin : shiftarray
-	if (pixClkEn) begin
-		shcout3 <= Reload ? shdout3 : {shcout3[14:0], shftCin3};
-		shcout2 <= Reload ? shdout2 : {shcout2[14:0], shftCin2};
-		shcout1 <= Reload ? shdout1 : {shcout1[14:0], shftCin1};
-		shcout0 <= Reload ? shdout0 : {shcout0[14:0], shftCin0};
-	end
+reg [15:0] shdout_next0, shdout_next1, shdout_next2, shdout_next3;
+always @(*) begin : shiftarray1
+	shdout_next0 = shdout0;
+	shdout_next1 = shdout1;
+	shdout_next2 = shdout2;
+	shdout_next3 = shdout3;
 	if (~LOAD_D & LOAD) begin
-		shdout3 <= DIN;
-		shdout2 <= shdout3;
-		shdout1 <= shdout2;
-		shdout0 <= shdout1;
+		shdout_next3 = DIN;
+		shdout_next2 = shdout3;
+		shdout_next1 = shdout2;
+		shdout_next0 = shdout1;
 	end
+end
+
+always @(negedge clk32) begin : shiftarray2
+	if (pixClkEn) begin
+		shcout3 <= Reload ? shdout_next3 : {shcout3[14:0], shftCin3};
+		shcout2 <= Reload ? shdout_next2 : {shcout2[14:0], shftCin2};
+		shcout1 <= Reload ? shdout_next1 : {shcout1[14:0], shftCin1};
+		shcout0 <= Reload ? shdout_next0 : {shcout0[14:0], shftCin0};
+	end
+	shdout3 <= shdout_next3;
+	shdout2 <= shdout_next2;
+	shdout1 <= shdout_next1;
+	shdout0 <= shdout_next0;
 end
 
 // shift array logic
