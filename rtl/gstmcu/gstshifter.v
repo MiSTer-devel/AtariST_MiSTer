@@ -46,7 +46,8 @@ module gstshifter (
 	output reg [3:0] R,
 	output reg [3:0] G,
 	output reg [3:0] B,
-	output reg CE_PIX,
+	output reg       CE_PIX,
+	output reg [1:0] CE_DIV,
 	// DMA SOUND
 	input  SLOAD_N,
 	output SREQ,
@@ -194,6 +195,7 @@ always @(posedge clk32, negedge resb)
 	if (!resb) t <= 2'b01; else t <= t + 1'd1;
 
 wire pclk_en = mono?1'b1:mid?~t[0]:low?t==2'b01:1'b0;
+always @(posedge clk32) CE_DIV <= mono ? 2'd0 : mid ? 2'd1 : 2'd3;
 
 wire reload;
 

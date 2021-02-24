@@ -41,8 +41,9 @@ module emu
 	output        CE_PIXEL,
 
 	//Video aspect ratio for HDMI. Most retro systems have ratio 4:3.
-	output [11:0] VIDEO_ARX,
-	output [11:0] VIDEO_ARY,
+	//if VIDEO_ARX[12] or VIDEO_ARY[12] is set then [11:0] contains scaled size instead of aspect ratio.
+	output [12:0] VIDEO_ARX,
+	output [12:0] VIDEO_ARY,
 
 	output  [7:0] VGA_R,
 	output  [7:0] VGA_G,
@@ -53,6 +54,9 @@ module emu
 	output        VGA_F1,
 	output [1:0]  VGA_SL,
 	output        VGA_SCALER, // Force VGA scaler
+
+	input  [11:0] HDMI_WIDTH,
+	input  [11:0] HDMI_HEIGHT,
 
 `ifdef USE_FB
 	// Use framebuffer in DDRAM (USE_FB=1 in qsf)
@@ -185,11 +189,27 @@ assign LED_POWER = 0;
 assign BUTTONS   = 0;
 assign VGA_SCALER= 0;
 
-assign VIDEO_ARX = (!ar) ? (viking_active ? 8'd5 : 8'd4) : (ar - 1'd1);
-assign VIDEO_ARY = (!ar) ? (viking_active ? 8'd4 : 8'd3) : 8'd0;
-
 assign {DDRAM_CLK, DDRAM_BURSTCNT, DDRAM_ADDR, DDRAM_DIN, DDRAM_BE, DDRAM_RD, DDRAM_WE} = 0;
 assign {SD_SCK, SD_MOSI, SD_CS} = 'Z;
+
+wire       vcrop_en = status[42];
+reg        en216p;
+reg  [4:0] voff;
+always @(posedge CLK_VIDEO) begin
+	en216p <= (HDMI_WIDTH == 1920) && (HDMI_HEIGHT == 1080) && !forced_scandoubler && !scanlines && !mono && !viking_active;
+end
+
+wire vga_de;
+video_freak video_freak
+(
+	.*,
+	.VGA_DE_IN(vga_de),
+	.ARX((!ar) ? (viking_active ? 8'd5 : 8'd4) : (ar - 1'd1)),
+	.ARY((!ar) ? (viking_active ? 8'd4 : 8'd3) : 8'd0),
+	.CROP_SIZE((en216p & vcrop_en) ? 10'd216 : 10'd0),
+	.CROP_OFF(0),
+	.SCALE(status[44:43])
+);
 
 ///////////////////////  CLOCK/RESET  ///////////////////////////////////
 
@@ -399,10 +419,11 @@ end
 
 wire hs_sd,vs_sd,hbl_sd,vbl_sd;
 wire [3:0] r_sd,g_sd,b_sd;
+wire sd_ena = (forced_scandoubler || scanlines) && ~mode[1];
 linedoubler linedoubler
 (
 	.clk_sys(clk_32),
-	.enable((forced_scandoubler || scanlines) && ~mode[1]),
+	.enable(sd_ena),
 
 	.hs_in(~hsync_n),
 	.vs_in(~vsync_n),
@@ -420,6 +441,27 @@ linedoubler linedoubler
 	.g_out(g_sd),
 	.b_out(b_sd)
 );
+
+reg ce_pix_gst;
+always @(posedge clk_32) begin
+	reg [1:0] fs_div, tdiv, cnt;
+	reg old_vs;
+
+	if(~hblank_gen && ~vblank_gen && ce_div < tdiv) tdiv <= ce_div;
+
+	old_vs <= vsync_n;
+	if(old_vs & ~vsync_n) begin
+		fs_div <= tdiv >> sd_ena;
+		tdiv <= 3;
+	end
+	
+	cnt <= cnt + 1'd1;
+	ce_pix_gst <= 0;
+	if(cnt == fs_div) begin
+		cnt <= 0;
+		ce_pix_gst <= 1;
+	end
+end
 
 reg [3:0] stvid_r, stvid_g, stvid_b;
 reg       stvid_hs, stvid_vs, stvid_hbl, stvid_vbl;
@@ -443,7 +485,7 @@ always @(posedge clk_96) begin
 		stvid_vbl <= viking_vbl;
 	end
 	else if(!div) begin
-		stvid_ce  <= 1; //ce_pix;
+		stvid_ce  <= ce_pix_gst;
 		stvid_r   <= r_sd;
 		stvid_g   <= g_sd;
 		stvid_b   <= b_sd;
@@ -477,7 +519,7 @@ gamma_fast gamma
 
 	.HSync_out(VGA_HS),
 	.VSync_out(VGA_VS),
-	.DE_out(VGA_DE),
+	.DE_out(vga_de),
 	.RGB_out({VGA_R,VGA_G,VGA_B})
 );
 
@@ -823,7 +865,8 @@ gstmcu gstmcu (
 	.bus_cycle     ( bus_cycle )
 );
 
-wire ce_pix;
+wire       ce_pix;
+wire [1:0] ce_div;
 gstshifter gstshifter (
 	.clk32      ( clk_32 ),
 	.ste        ( ste ),
@@ -850,6 +893,7 @@ gstshifter gstshifter (
 	.G          ( g ),
 	.B          ( b ),
 	.CE_PIX     ( ce_pix ),
+	.CE_DIV     ( ce_div ),
 
 	// DMA SOUND
 	.SLOAD_N    ( sload_n ),
