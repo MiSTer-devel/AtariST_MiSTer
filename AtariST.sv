@@ -57,8 +57,9 @@ module emu
 
 	input  [11:0] HDMI_WIDTH,
 	input  [11:0] HDMI_HEIGHT,
+	output        HDMI_FREEZE,
 
-`ifdef USE_FB
+`ifdef MISTER_FB
 	// Use framebuffer in DDRAM (USE_FB=1 in qsf)
 	// FB_FORMAT:
 	//    [2:0] : 011=8bpp(palette) 100=16bpp 101=24bpp 110=32bpp
@@ -76,6 +77,7 @@ module emu
 	input         FB_LL,
 	output        FB_FORCE_BLANK,
 
+`ifdef MISTER_FB_PALETTE
 	// Palette control for 8bit modes.
 	// Ignored for other video modes.
 	output        FB_PAL_CLK,
@@ -83,6 +85,7 @@ module emu
 	output [23:0] FB_PAL_DOUT,
 	input  [23:0] FB_PAL_DIN,
 	output        FB_PAL_WR,
+`endif
 `endif
 
 	output        LED_USER,  // 1 - ON, 0 - OFF.
@@ -114,7 +117,6 @@ module emu
 	output        SD_CS,
 	input         SD_CD,
 
-`ifdef USE_DDRAM
 	//High latency DDR3 RAM interface
 	//Use for non-critical time purposes
 	output        DDRAM_CLK,
@@ -127,9 +129,7 @@ module emu
 	output [63:0] DDRAM_DIN,
 	output  [7:0] DDRAM_BE,
 	output        DDRAM_WE,
-`endif
 
-`ifdef USE_SDRAM
 	//SDRAM interface with lower latency
 	output        SDRAM_CLK,
 	output        SDRAM_CKE,
@@ -142,10 +142,10 @@ module emu
 	output        SDRAM_nCAS,
 	output        SDRAM_nRAS,
 	output        SDRAM_nWE,
-`endif
 
-`ifdef DUAL_SDRAM
+`ifdef MISTER_DUAL_SDRAM
 	//Secondary SDRAM
+	//Set all output SDRAM_* signals to Z ASAP if SDRAM2_EN is 0
 	input         SDRAM2_EN,
 	output        SDRAM2_CLK,
 	output [12:0] SDRAM2_A,
@@ -188,6 +188,7 @@ assign LED_DISK  = 0;
 assign LED_POWER = 0;
 assign BUTTONS   = 0;
 assign VGA_SCALER= 0;
+assign HDMI_FREEZE = 0;
 
 assign {DDRAM_CLK, DDRAM_BURSTCNT, DDRAM_ADDR, DDRAM_DIN, DDRAM_BE, DDRAM_RD, DDRAM_WE} = 0;
 assign {SD_SCK, SD_MOSI, SD_CS} = 'Z;
@@ -230,19 +231,25 @@ wire init = ~pll_locked | RESET;
 ////////////////////////////  HPS I/O  //////////////////////////////////
 
 `include "build_id.v"
-parameter CONF_STR1 = {
+parameter CONF_STR = {
 	"AtariST;UART19200:9600:4800:2400:1200,MIDI;",
 	"J,A,B,C,Option,Pause,#,*,0,1,2,3,4/L,5,6/R,7/Z,8/Y,9/X;",
 	"jn,A,B,X,Select,Start,,,,,,,L,,R;",
 	"I,",
 	"ST joysticks,",
 	"STe joysticks,",
-	"MT32-pi: "
-};
-
-localparam CONF_STR2 =
-{
-	";",
+	"MT32-pi: SoundFont #0,",
+	"MT32-pi: SoundFont #1,",
+	"MT32-pi: SoundFont #2,",
+	"MT32-pi: SoundFont #3,",
+	"MT32-pi: SoundFont #4,",
+	"MT32-pi: SoundFont #5,",
+	"MT32-pi: SoundFont #6,",
+	"MT32-pi: SoundFont #7,",
+	"MT32-pi: MT-32 v1,",
+	"MT32-pi: MT-32 v2,",
+	"MT32-pi: CM-32L,",
+	"MT32-pi: Unknown mode;",
 	"V,v",`BUILD_DATE
 };
 
@@ -252,7 +259,7 @@ wire        forced_scandoubler;
 wire [31:0] sd_lba;
 wire  [1:0] sd_rd;
 wire  [1:0] sd_wr;
-wire        sd_ack;
+wire  [1:0] sd_ack;
 wire  [7:0] sd_buff_addr;
 wire [15:0] sd_buff_dout;
 wire [15:0] sd_buff_din;
@@ -276,11 +283,10 @@ wire [21:0] gamma_bus;
 wire  [7:0] uart_mode;
 wire        uart = (uart_mode < 3);
 
-hps_io #(.STRLEN(($size(CONF_STR1) + $size(mt32_curmode) + $size(CONF_STR2))>>3), .WIDE(1), .VDNUM(2)) hps_io
+hps_io #(.CONF_STR(CONF_STR), .WIDE(1), .VDNUM(2)) hps_io
 (
 	.clk_sys(clk_32),
 	.HPS_BUS(HPS_BUS),
-	.conf_str({CONF_STR1, mt32_curmode, CONF_STR2}),
 
 	.buttons(buttons),
 	.forced_scandoubler(forced_scandoubler),
@@ -306,13 +312,13 @@ hps_io #(.STRLEN(($size(CONF_STR1) + $size(mt32_curmode) + $size(CONF_STR2))>>3)
 	.ioctl_download(ioctl_download),
 	.ioctl_index(ioctl_index),
 
-	.sd_lba(sd_lba),
+	.sd_lba('{sd_lba,sd_lba}),
 	.sd_rd(sd_rd),
 	.sd_wr(sd_wr),
 	.sd_ack(sd_ack),
 	.sd_buff_addr(sd_buff_addr),
 	.sd_buff_dout(sd_buff_dout),
-	.sd_buff_din(sd_buff_din),
+	.sd_buff_din('{sd_buff_din,sd_buff_din}),
 	.sd_buff_wr(sd_buff_wr),
 
 	.img_mounted(img_mounted),
@@ -582,12 +588,6 @@ mt32pi mt32pi
 	.midi_tx(midi_tx | mt32_mute)
 );
 
-wire [87:0] mt32_curmode = {(mt32_mode == 'hA2)                  ? {"SoundFont ", {5'b00110, mt32_sf[2:0]}} :
-                            (mt32_mode == 'hA1 && mt32_rom == 0) ?  "   MT-32 v1" :
-                            (mt32_mode == 'hA1 && mt32_rom == 1) ?  "   MT-32 v2" :
-                            (mt32_mode == 'hA1 && mt32_rom == 2) ?  "     CM-32L" :
-                                                                    "    Unknown" };
-
 wire  [4:0] mt32_cfg = (mt32_mode == 'hA2) ? {mt32_sf[2:0],  2'b10} :
                        (mt32_mode == 'hA1) ? {mt32_rom[1:0], 2'b01} : 5'd0;
 
@@ -636,7 +636,11 @@ always @(posedge clk_32) begin
 	old_mode <= joy_port_ste;
 	info_req <= (old_mode ^ joy_port_ste) || ((old_mt32mode ^ mt32_newmode) && (mt32_info == 1));
 
-	info <= (old_mode ^ joy_port_ste) ? (joy_port_ste ? 8'd2 : 8'd1) : 8'd3;
+	info <= (old_mode ^ joy_port_ste) ? (joy_port_ste ? 8'd2 : 8'd1) :
+           (mt32_mode == 'hA2)                  ? (8'd3 + mt32_sf[2:0]) :
+           (mt32_mode == 'hA1 && mt32_rom == 0) ?  8'd11 :
+           (mt32_mode == 'hA1 && mt32_rom == 1) ?  8'd12 :
+           (mt32_mode == 'hA1 && mt32_rom == 2) ?  8'd13 : 8'd14;
 end
 
 
@@ -1390,7 +1394,7 @@ fdc1772 #(.IMG_TYPE(1)) fdc1772 (
 	.sd_lba         ( sd_lba           ),
 	.sd_rd          ( sd_rd            ),
 	.sd_wr          ( sd_wr            ),
-	.sd_ack         ( sd_ack           ),
+	.sd_ack         ( |sd_ack          ),
 	.sd_buff_addr   ( sd_buff_addr     ),
 	.sd_dout        ( sd_buff_dout     ),
 	.sd_din         ( sd_buff_din      ),
