@@ -274,6 +274,7 @@ wire  [7:0] ps2_mouse_ext;
 wire [21:0] gamma_bus;
 
 wire  [7:0] uart_mode;
+wire        uart = (uart_mode < 3);
 
 hps_io #(.STRLEN(($size(CONF_STR1) + $size(mt32_curmode) + $size(CONF_STR2))>>3), .WIDE(1), .VDNUM(2)) hps_io
 (
@@ -644,31 +645,25 @@ end
 //////////////////////////////////////////////////////////////////////////////////
 
 // enable additional ste/megaste features
-wire ste = status[23] || status[24];
-wire mste = status[24];
-wire steroids = status[23] && status[24];  // a STE on steroids
-
-wire       psg_stereo = status[22];
-
-// STe always has a blitter
-wire       blitter_en = (status[19] || ste);
-wire       viking_en = status[28];
-wire [1:0] scanlines = status[21:20];
-wire [8:0] acsi_enable = status[17:10];
-wire [1:0] fdc_wp = status[7:6];
+wire       MEM512K      = (status[3:1] == 3'd0);
+wire       MEM1M        = (status[3:1] == 3'd1);
+wire       MEM2M        = (status[3:1] == 3'd2);
+wire       MEM4M        = (status[3:1] == 3'd3);
+wire       MEM8M        = (status[3:1] == 3'd4);
+wire       MEM14M       = (status[3:1] == 3'd5);
+wire [1:0] fdc_wp       = status[7:6];
 wire       mono_monitor = status[8];
-wire       narrow_brd = status[29];
-wire       mde60 = status[30];
-wire [1:0] ar = {status[31],status[9]};
-wire       uart = (uart_mode < 3);
-
-// RAM size selects
-wire MEM512K = (status[3:1] == 3'd0);
-wire MEM1M   = (status[3:1] == 3'd1);
-wire MEM2M   = (status[3:1] == 3'd2);
-wire MEM4M   = (status[3:1] == 3'd3);
-wire MEM8M   = (status[3:1] == 3'd4);
-wire MEM14M  = (status[3:1] == 3'd5);
+wire [8:0] acsi_enable  = status[17:10];
+wire       blitter_en   = (status[19] || ste);
+wire [1:0] scanlines    = status[21:20];
+wire       psg_stereo   = status[22];
+wire       ste          = status[23] || status[24];
+wire       mste         = status[24];
+wire       steroids     = status[23] && status[24];  // a STE on steroids
+wire       viking_en    = status[28];
+wire       narrow_brd   = status[29];
+wire       mde60        = status[30];
+wire [1:0] ar           = {status[31],status[9]};
 
 // synchronized reset signal
 reg reset;
@@ -974,9 +969,9 @@ wire        shifter_cycle = (turbo_bus && (bus_cycle == 0 || bus_cycle == 3)) ||
 wire        mcu_dtack_n_adj = (use_16mhz & ~rom_n) ? (mcu_dtack_n | shifter_cycle) : mcu_dtack_n;
 
 fx68k fx68k (
-	.clk        ( clk_32 ),
-	.extReset   ( reset ),
-	.pwrUp      ( reset ),
+	.clk        ( clk_32     ),
+	.extReset   ( reset      ),
+	.pwrUp      ( reset      ),
 	.enPhi1     ( fx68_phi1 | reset ),
 	.enPhi2     ( fx68_phi2 | reset ),
 
@@ -992,15 +987,16 @@ fx68k fx68k (
 	.BGn        ( blitter_bg_n ),
 	.oRESETn    ( cpu_reset_n_o ),
 	.oHALTEDn   (),
-	.DTACKn     ( dtack_n ),
-	.VPAn       ( vpa_n ),
-	.BERRn      ( berr_n ),
+	.DTACKn     ( dtack_n    ),
+	.VPAn       ( vpa_n      ),
+	.BERRn      ( berr_n     ),
+	.HALTn      ( 1'b1       ),
 	.BRn        ( blitter_br_n & mcu_br_n ),
 	.BGACKn     ( blitter_bgack_n ),
-	.IPL0n      ( ipl0_n ),
-	.IPL1n      ( ipl1_n ),
-	.IPL2n      ( ipl2_n ),
-	.iEdb       ( cpu_din ),
+	.IPL0n      ( ipl0_n     ),
+	.IPL1n      ( ipl1_n     ),
+	.IPL2n      ( ipl2_n     ),
+	.iEdb       ( cpu_din    ),
 	.oEdb       ( cpu_dout ),
 	.eab        ( cpu_a )
 );
@@ -1152,7 +1148,7 @@ end
 // using the "gauntlet2 interface", fire of
 // joystick 0 is connected to the mfp I0 (busy)
 wire [7:0] port_b_in = { ~joy2[0], ~joy2[1], ~joy2[2], ~joy2[3],~joy3[0], ~joy3[1], ~joy3[2], ~joy3[3]};
-wire [7:0] port_a_in = { 2'b11, ~joy3[4], 5'b11111 };
+wire [7:0] port_a_in = { port_a_out[7:6], ~joy3[4], port_a_out[4:0] };
 wire [7:0] port_a_out;
 wire [7:0] port_b_out;
 wire       floppy_side = port_a_out[0];
@@ -1368,7 +1364,7 @@ wire [7:0] fdc_dout;
 // but we can simply map all such broken accesses to drive A only
 wire [1:0] floppy_sel_exclusive = (floppy_sel == 2'b00)?2'b10:floppy_sel;
 
-fdc1772 #(.SECTOR_SIZE_CODE(2'd2),.SECTOR_BASE(1'b1)) fdc1772 (
+fdc1772 #(.IMG_TYPE(1)) fdc1772 (
 	.clkcpu         ( clk_32           ), // system cpu clock.
 	.clk8m_en       ( mhz8_en1         ),
 

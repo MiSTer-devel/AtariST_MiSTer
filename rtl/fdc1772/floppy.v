@@ -19,11 +19,13 @@
 
 module floppy (
 	// main clock
-	input 	     clk,
-	input 	     select,
-	input 	     motor_on,
-	input 	     step_in,
-	input 	     step_out,
+	input        clk,
+	input        clk8m_en,
+
+	input        select,
+	input        motor_on,
+	input        step_in,
+	input        step_out,
 
 	input [10:0] sector_len,
 	input        sector_base,    // number of first sector on track (archie 0, dos 1)
@@ -32,38 +34,38 @@ module floppy (
 	input        hd,
 	input        fm,
 
-	output 	     dclk_en,      // data clock enable
+	output 	    dclk_en,      // data clock enable
 	output [6:0] track,        // number of track under head
 	output [4:0] sector,       // number of sector under head, 0 = no sector
-	output 	     sector_hdr,   // valid sector header under head
-	output 	     sector_data,  // valid sector data under head
+	output       sector_hdr,   // valid sector header under head
+	output       sector_data,  // valid sector data under head
 	       
-	output 	     ready,        // drive is ready, data can be read
+	output       ready,        // drive is ready, data can be read
 	output reg   index
 );
 
 // The sysclock is the value all floppy timings are derived from. 
 // Default: 8 MHz
-parameter SYS_CLK = 8000000;
+parameter CLK_EN = 8000;
 
 assign sector_hdr = (sec_state == SECTOR_STATE_HDR);
 assign sector_data = (sec_state == SECTOR_STATE_DATA);
 
 // a standard DD floppy has a data rate of 250kBit/s and rotates at 300RPM
-localparam RATESD = 20'd125000;
-localparam RATEDD = 20'd250000;
-localparam RATEHD = 20'd500000;
-localparam RPM = 10'd300;
-localparam STEPBUSY = 8'd18;       // 18ms after step data can be read
-localparam SPINUP = 10'd500;       // drive spins up in up to 800ms
-localparam SPINDOWN = 10'd300;     // GUESSED: drive spins down in 300ms
-localparam INDEX_PULSE_LEN = 4'd5; // fd1036 data sheet says 1~8ms
-localparam SECTOR_HDR_LEN = 4'd6;  // GUESSED: Sector header is 6 bytes
-localparam TRACKS = 8'd85;         // max allowed track
+localparam RATESD          = 125000;
+localparam RATEDD          = 250000;
+localparam RATEHD          = 500000;
+localparam RPM             = 300;
+localparam STEPBUSY        = 18;    // 18ms after step data can be read
+localparam SPINUP          = 500;   // drive spins up in up to 800ms
+localparam SPINDOWN        = 300;   // GUESSED: drive spins down in 300ms
+localparam INDEX_PULSE_LEN = 5;     // fd1036 data sheet says 1~8ms
+localparam SECTOR_HDR_LEN  = 6;     // GUESSED: Sector header is 6 bytes
+localparam TRACKS          = 85;    // max allowed track
 
 // Archimedes specific values
-//localparam SECTOR_LEN = 11'd1024 // Default sector size is 1024 on Archie
-//localparam SECTOR_LEN = 11'd512; // Default sector size is 512 on ST ...
+//localparam SECTOR_LEN = 11'd1024  // Default sector size is 1024 on Archie
+//localparam SECTOR_LEN = 11'd512;  // Default sector size is 512 on ST ...
 //localparam SPT = 4'd10;           // ... with 5 sectors per track
 //localparam SECTOR_BASE = 4'd1;    // number of first sector on track (archie 0, dos 1)
 
@@ -72,8 +74,8 @@ localparam BPTSD = RATESD*60/(8*RPM);
 localparam BPTDD = RATEDD*60/(8*RPM);
 localparam BPTHD = RATEHD*60/(8*RPM);
 
-// report disk ready if it spins at full speed and head is not moving
-assign ready = select && (rate == (fm ? RATESD : hd ? RATEHD : RATEDD)) && (step_busy == 0);
+// report disk ready if it spins at full speed
+assign ready = select && (rate == (fm ? RATESD : hd ? RATEHD : RATEDD));
 
 // ================================================================
 // ========================= INDEX PULSE ==========================
@@ -81,9 +83,9 @@ assign ready = select && (rate == (fm ? RATESD : hd ? RATEHD : RATEDD)) && (step
 
 // Index pulse generation. Pulse starts with the begin of index_pulse_start
 // and lasts INDEX_PULSE_CYCLES system clock cycles
-localparam INDEX_PULSE_CYCLES = INDEX_PULSE_LEN * SYS_CLK / 1000;
+localparam INDEX_PULSE_CYCLES = INDEX_PULSE_LEN * CLK_EN;
 reg [18:0] index_pulse_cnt;
-always @(posedge clk) begin
+always @(posedge clk) if(clk8m_en) begin
 	if(index_pulse_start && (index_pulse_cnt == INDEX_PULSE_CYCLES-1)) begin
 		index <= 1'b0;
 		index_pulse_cnt <= 19'd0;
@@ -97,7 +99,7 @@ end
 // ======================= track handling =========================
 // ================================================================
 
-localparam STEP_BUSY_CLKS = (SYS_CLK/1000)*STEPBUSY;  // steprate is in ms
+localparam STEP_BUSY_CLKS = CLK_EN*STEPBUSY;  // steprate is in ms
 
 assign track = current_track;
 reg [6:0] current_track /* verilator public */ = 7'd0;
@@ -110,7 +112,7 @@ always @(posedge clk) begin
 	step_inD <= step_in;
 	step_outD <= step_out;
 
-	if(step_busy != 0)
+	if(clk8m_en && step_busy != 0)
 		step_busy <= step_busy - 18'd1;
 
 	if(select) begin
@@ -159,7 +161,7 @@ always @(posedge clk) begin
 				case(sec_state)
 				SECTOR_STATE_GAP: begin
 					sec_state <= SECTOR_STATE_HDR;
-					sec_byte_cnt <= SECTOR_HDR_LEN-1'd1;
+					sec_byte_cnt <= SECTOR_HDR_LEN[9:0]-1'd1;
 				end
 	   
 				SECTOR_STATE_HDR: begin
@@ -225,8 +227,8 @@ end
 
 // number of system clock cycles after which disk has reached
 // full speed
-localparam SPIN_UP_CLKS = SYS_CLK/1000*SPINUP;
-localparam SPIN_DOWN_CLKS = SYS_CLK/1000*SPINDOWN;
+localparam SPIN_UP_CLKS = CLK_EN*SPINUP;
+localparam SPIN_DOWN_CLKS = CLK_EN*SPINDOWN;
 reg [31:0] spin_up_counter;
 
 // internal motor on signal that is only true if the drive is selected
@@ -242,7 +244,7 @@ always @(posedge clk) begin
 	// reset spin_up counter whenever motor state changes
 	if(motor_onD != motor_on_sel)
 		spin_up_counter <= 32'd0;
-	else begin
+	else if(clk8m_en) begin
 		spin_up_counter <= spin_up_counter + (fm ? RATESD : hd ? RATEHD : RATEDD);
       
 		if(motor_on_sel) begin
@@ -271,12 +273,14 @@ reg data_clk_en;
 reg [31:0] clk_cnt;
 always @(posedge clk) begin
 	data_clk_en <= 0;
-	if(clk_cnt + rate > SYS_CLK/2) begin
-		clk_cnt <= clk_cnt - (SYS_CLK/2 - rate);
-		data_clk <= !data_clk;
-		if (~data_clk) data_clk_en <= 1;
-	end else
-		clk_cnt <= clk_cnt + rate;
+	if(clk8m_en) begin
+		if(clk_cnt + rate > CLK_EN*1000/2) begin
+			clk_cnt <= clk_cnt - (CLK_EN*1000/2 - rate);
+			data_clk <= !data_clk;
+			if (~data_clk) data_clk_en <= 1;
+		end else
+			clk_cnt <= clk_cnt + rate;
+	end
 end
 
 endmodule
