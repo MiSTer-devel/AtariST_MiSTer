@@ -649,25 +649,26 @@ end
 //////////////////////////////////////////////////////////////////////////////////
 
 // enable additional ste/megaste features
-wire       MEM512K      = (status[3:1] == 3'd0);
-wire       MEM1M        = (status[3:1] == 3'd1);
-wire       MEM2M        = (status[3:1] == 3'd2);
-wire       MEM4M        = (status[3:1] == 3'd3);
-wire       MEM8M        = (status[3:1] == 3'd4);
-wire       MEM14M       = (status[3:1] == 3'd5);
-wire [1:0] fdc_wp       = status[7:6];
-wire       mono_monitor = status[8];
-wire [8:0] acsi_enable  = status[17:10];
-wire       blitter_en   = (status[19] || ste);
-wire [1:0] scanlines    = status[21:20];
-wire       psg_stereo   = status[22];
-wire       ste          = status[23] || status[24];
-wire       mste         = status[24];
-wire       steroids     = status[23] && status[24];  // a STE on steroids
-wire       viking_en    = status[28];
-wire       narrow_brd   = status[29];
-wire       mde60        = status[30];
-wire [1:0] ar           = {status[31],status[9]};
+wire       MEM512K       = (status[3:1] == 3'd0);
+wire       MEM1M         = (status[3:1] == 3'd1);
+wire       MEM2M         = (status[3:1] == 3'd2);
+wire       MEM4M         = (status[3:1] == 3'd3);
+wire       MEM8M         = (status[3:1] == 3'd4);
+wire       MEM14M        = (status[3:1] == 3'd5);
+wire [1:0] fdc_wp        = status[7:6];
+wire       mono_monitor  = status[8];
+wire [8:0] acsi_enable   = status[17:10];
+wire       blitter_en    = (status[19] || ste);
+wire [1:0] scanlines     = status[21:20];
+wire       psg_stereo    = status[22];
+wire       ste           = status[23] || status[24];
+wire       mste          = status[24];
+wire       steroids      = status[23] && status[24];  // a STE on steroids
+wire       viking_en     = status[28];
+wire       narrow_brd    = status[29];
+wire       mde60         = status[30];
+wire [1:0] ar            = {status[31],status[9]};
+wire       cubase_enable = 1'b1; //status[32];
 
 // synchronized reset signal
 reg reset;
@@ -731,6 +732,7 @@ assign      cpu_din =
               blitter_sel ? blitter_data_out :
               !rdat_n  ? shifter_dout :
               !(mfpcs_n & mfpiack_n)? { 8'hff, mfp_data_out } :
+              (!rom3_n & cubase_enable) ? {7'h7f, cubase_d8, 8'hff } :
               !rom_n   ? rom_data_out :
               n6850    ? { mbus_a[2] ? midi_acia_data_out : kbd_acia_data_out, 8'hFF } :
               sndcs    ? { snd_data_out, 8'hFF }:
@@ -1399,6 +1401,19 @@ fdc1772 #(.IMG_TYPE(1)) fdc1772 (
 	.sd_dout        ( sd_buff_dout     ),
 	.sd_din         ( sd_buff_din      ),
 	.sd_dout_strobe ( sd_buff_wr       )
+);
+
+/* ------------------------------------------------------------------------------ */
+/* ------------------------------- Cubase dongle  ------------------------------- */
+/* ------------------------------------------------------------------------------ */
+wire cubase_d8;
+
+cubase_dongle cubase_dongle (
+	.clk        ( clk_32    ),
+	.reset      ( peripheral_reset ),
+	.rom3_n     ( rom3_n    ),
+	.a8         ( mbus_a[8] ),
+	.d8         ( cubase_d8 )
 );
 
 /* ------------------------------------------------------------------------------ */
