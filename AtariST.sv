@@ -664,11 +664,11 @@ wire       psg_stereo    = status[22];
 wire       ste           = status[23] || status[24];
 wire       mste          = status[24];
 wire       steroids      = status[23] && status[24];  // a STE on steroids
+wire       cubase_enable = status[25];
 wire       viking_en     = status[28];
 wire       narrow_brd    = status[29];
 wire       mde60         = status[30];
 wire [1:0] ar            = {status[31],status[9]};
-wire       cubase_enable = 1'b1; //status[32];
 
 // synchronized reset signal
 reg reset;
