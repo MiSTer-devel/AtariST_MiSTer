@@ -14,7 +14,8 @@ set_global_assignment -name VHDL_FILE rtl/vol_table_array.vhd
 set_global_assignment -name VERILOG_FILE rtl/ste_joypad.v
 set_global_assignment -name SYSTEMVERILOG_FILE rtl/stBlitter.sv
 set_global_assignment -name VERILOG_FILE rtl/linedoubler.v
-set_global_assignment -name VERILOG_FILE rtl/cubase_dongle.v
+set_global_assignment -name VERILOG_FILE rtl/cubase2_dongle.v
+set_global_assignment -name VERILOG_FILE rtl/cubase3_dongle.v
 set_global_assignment -name VERILOG_FILE hps_ext.v
 set_global_assignment -name SDC_FILE AtariST.sdc
 set_global_assignment -name SYSTEMVERILOG_FILE AtariST.sv

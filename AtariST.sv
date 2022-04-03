@@ -726,13 +726,13 @@ wire        cpu_reset_n_o;
 wire [15:0] cpu_din, cpu_dout;
 wire [23:1] cpu_a;
 
-wire        rom_n = rom0_n & rom1_n & rom2_n & rom3_n & rom4_n & rom5_n & rom6_n & romp_n;
+wire        rom_n = rom0_n & rom1_n & rom2_n & (rom3_n | cubase_enable) & rom4_n & rom5_n & rom6_n & romp_n;
 assign      cpu_din = 
               ~fcs_n ? dma_data_out :
               blitter_sel ? blitter_data_out :
               !rdat_n  ? shifter_dout :
               !(mfpcs_n & mfpiack_n)? { 8'hff, mfp_data_out } :
-              (!rom3_n & cubase_enable) ? {7'h7f, cubase_d8, 8'hff } :
+              (!rom3_n & cubase_enable) ? {cubase_dout, 8'hff} :
               !rom_n   ? rom_data_out :
               n6850    ? { mbus_a[2] ? midi_acia_data_out : kbd_acia_data_out, 8'hFF } :
               sndcs    ? { snd_data_out, 8'hFF }:
@@ -1406,14 +1406,37 @@ fdc1772 #(.IMG_TYPE(1)) fdc1772 (
 /* ------------------------------------------------------------------------------ */
 /* ------------------------------- Cubase dongle  ------------------------------- */
 /* ------------------------------------------------------------------------------ */
-wire cubase_d8;
+wire        cubase3_d8;
+wire  [7:0] cubase2_dout;
+wire  [7:0] cubase_dout = cubase_sel ? cubase2_dout : {7'h7f, cubase3_d8};
+reg         cubase_sel; // Cubase3/2 dongle
+reg         cubase_lock;
 
-cubase_dongle cubase_dongle (
-	.clk        ( clk_32    ),
+always @(posedge clk_32) begin
+	if (peripheral_reset) begin
+		cubase_sel <= 0;
+		cubase_lock <= 0;
+	end
+	else if (cubase_enable & !rom3_n & !cubase_lock) begin
+		cubase_sel <= |mbus_a[7:1];
+		cubase_lock <= 1;
+	end
+end
+
+cubase2_dongle cubase2_dongle (
+	.clk        ( clk_32           ),
 	.reset      ( peripheral_reset ),
-	.rom3_n     ( rom3_n    ),
-	.a8         ( mbus_a[8] ),
-	.d8         ( cubase_d8 )
+	.uds_n      ( uds_n            ),
+	.A          ( mbus_a[8:1]      ),
+	.D          ( cubase2_dout     )
+);
+
+cubase3_dongle cubase3_dongle (
+	.clk        ( clk_32           ),
+	.reset      ( peripheral_reset ),
+	.rom3_n     ( rom3_n           ),
+	.a8         ( mbus_a[8]        ),
+	.d8         ( cubase3_d8       )
 );
 
 /* ------------------------------------------------------------------------------ */
