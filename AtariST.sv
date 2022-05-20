@@ -398,19 +398,23 @@ wire [11:0] vend[8]   = '{ 261, 311, 437, 0,  252, 293, 522, 0};
 
 reg       hblank_gen, vblank_gen;
 reg [2:0] mode;
+reg       vsync_n_l, hsync_n_l;
 always @(posedge clk_32) begin
-	reg old_vs, old_hs;
 	reg  [11:0] hcnt,vcnt;
 	
 	hcnt <= hcnt + 1'd1;
-	old_hs <= hsync_n;
-	if(~old_hs & hsync_n) begin
+	hsync_n_l <= hsync_n;
+
+	if(~hsync_n_l & hsync_n) begin
 		hcnt <= 0;
 		vcnt <= vcnt + 1'd1;
 	end
 
-	old_vs <= vsync_n;
-	if(old_vs & ~vsync_n) begin
+	if (hsync_n_l & ~hsync_n) begin
+		vsync_n_l <= vsync_n;
+	end
+
+	if(vsync_n_l & ~vsync_n) begin
 		mode <= {mono ? mde60 : narrow_brd, mono, ~mono & pal};
 		vcnt <= 0;
 	end
@@ -432,8 +436,8 @@ linedoubler linedoubler
 	.clk_sys(clk_32),
 	.enable(sd_ena),
 
-	.hs_in(~hsync_n),
-	.vs_in(~vsync_n),
+	.hs_in(~hsync_n_l),
+	.vs_in(~vsync_n_l),
 	.hbl_in(hblank_gen),
 	.vbl_in(vblank_gen),
 	.r_in(r),
