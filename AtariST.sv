@@ -730,7 +730,7 @@ wire        cpu_reset_n_o;
 wire [15:0] cpu_din, cpu_dout;
 wire [23:1] cpu_a;
 
-wire        rom_n = rom0_n & rom1_n & rom2_n & (rom3_n | cubase_enable) & rom4_n & rom5_n & rom6_n & romp_n;
+wire        rom_n = rom0_n & rom1_n & rom2_n & rom3_n & rom4_n & rom5_n & rom6_n & romp_n;
 assign      cpu_din = 
               ~fcs_n ? dma_data_out :
               blitter_sel ? blitter_data_out :
@@ -1502,7 +1502,9 @@ wire sdram_uds = (cpu_cycle & dio_download)?1'b1:ram_uds;
 wire sdram_lds = (cpu_cycle & dio_download)?1'b1:ram_lds;
 
 wire [23:1] rom_a = (!rom2_n & ~tos192k) ? { 4'hE, 2'b00, mbus_a[17:1] } :
-                    (!rom2_n &  tos192k) ? { 4'hF, 2'b11, mbus_a[17:1] } : mbus_a;
+                    (!rom2_n &  tos192k) ? { 4'hF, 2'b11, mbus_a[17:1] } : 
+                    !rom4_n              ? { 8'hFA,       mbus_a[15:1] } : 
+                    !rom3_n              ? { 8'hFB,       mbus_a[15:1] } : mbus_a;
 
 wire [15:0] ram_data_out;
 wire [63:0] ram_data_out64;
