@@ -59,6 +59,8 @@ module emu
 	input  [11:0] HDMI_WIDTH,
 	input  [11:0] HDMI_HEIGHT,
 	output        HDMI_FREEZE,
+	output        HDMI_BLACKOUT,
+	output        HDMI_BOB_DEINT,
 
 `ifdef MISTER_FB
 	// Use framebuffer in DDRAM
@@ -181,7 +183,8 @@ assign ADC_BUS  = 'Z;
 assign UART_DTR = UART_DSR;
 assign UART_RTS = uart ? usart_rts : UART_CTS;
 assign UART_TXD = uart ? usart_so  : (midi_tx & ~mt32_use) ;
-
+assign HDMI_BLACKOUT = 0;
+assign HDMI_BOB_DEINT = 0;
 assign AUDIO_MIX = 0;
 
 assign LED_USER  = ~&floppy_sel;
