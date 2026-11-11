@@ -126,23 +126,38 @@ reg        fdc_dma_sel;
 wire       fdc_dma_rw = ~dma_direction_out;
 reg        fdc_bs;
 
+wire cpu_fdc_acc = cpu_sel && !cpu_a1 && (dma_mode[4:3] == 2'b00);
+
 always @(posedge clk) begin
 	reg fdc_drqD;
 	reg fdc_state;
+	reg fdc_req;
+	reg [6:0] fdc_req_wait;
 
 	if (reset | fifo_reset) begin
 		fdc_fifo_strobe <= 1'b0;
 		fdc_state <= 1'b0;
 		fdc_bs <= 1'b0;
 		fdc_dma_sel <= 1'b0;
+		fdc_req <= 1'b0;
 	end else begin
 		fdc_drqD <= fdc_drq;
 		fdc_fifo_strobe <= 1'b0;
 
 		case (fdc_state)
-		0: if (~fdc_drqD & fdc_drq) begin
-			fdc_dma_sel <= 1'b1;
-			fdc_state <= 1'b1;
+		0: begin
+			if (~fdc_drqD & fdc_drq) begin
+				fdc_req <= 1'b1;
+				fdc_req_wait <= 7'd0;
+			end
+			else if (fdc_req) begin
+				if (~&fdc_req_wait) fdc_req_wait <= fdc_req_wait + 1'd1;
+				if (!cpu_fdc_acc || &fdc_req_wait) begin
+					fdc_req <= 1'b0;
+					fdc_dma_sel <= 1'b1;
+					fdc_state <= 1'b1;
+				end
+			end
 		   end
 		1: if (clk_en) begin
 			fdc_dma_sel <= 1'b0;

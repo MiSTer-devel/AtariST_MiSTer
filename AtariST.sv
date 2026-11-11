@@ -113,7 +113,8 @@ wire [31:0] sd_lba;
 wire  [1:0] sd_rd;
 wire  [1:0] sd_wr;
 wire  [1:0] sd_ack;
-wire  [7:0] sd_buff_addr;
+wire [12:0] sd_buff_addr;
+wire  [5:0] fdc_blk_cnt;
 wire [15:0] sd_buff_dout;
 wire [15:0] sd_buff_din;
 wire        sd_buff_wr;
@@ -166,6 +167,7 @@ hps_io #(.CONF_STR(CONF_STR), .WIDE(1), .VDNUM(2)) hps_io
 	.ioctl_index(ioctl_index),
 
 	.sd_lba('{sd_lba,sd_lba}),
+	.sd_blk_cnt('{fdc_blk_cnt,fdc_blk_cnt}),
 	.sd_rd(sd_rd),
 	.sd_wr(sd_wr),
 	.sd_ack(sd_ack),
@@ -1249,7 +1251,9 @@ fdc1772 #(.IMG_TYPE(1)) fdc1772 (
 	// place any signals that need to be passed up to the top after here.
 	.img_mounted    ( img_mounted      ), // signaling that new image has been mounted
 	.img_wp         ( fdc_wp           ), // write protect
-	.img_size       ( img_size         ), // size of image in bytes
+	.img_size       ( img_size[31:0]   ), // size of image in bytes
+	.img_mfmt       ( img_size[63:56] == 8'd1 ),
+	.sd_blk_cnt     ( fdc_blk_cnt      ),
 	.sd_lba         ( sd_lba           ),
 	.sd_rd          ( sd_rd            ),
 	.sd_wr          ( sd_wr            ),
