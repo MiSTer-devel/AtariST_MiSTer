@@ -253,6 +253,11 @@ wire [11:0] vend[8]   = '{ 261, 311, 437, 0,  252, 293, 522, 0};
 
 reg       hblank_gen, vblank_gen;
 reg [2:0] mode;
+reg  [2:0] ce_sr;
+reg [10:0] nb_cnt;
+wire [11:0] nb_hmin   = (mode[0] ? 12'd364 : 12'd348) - ((ce_div == 2'd1) ? 12'd2 : 12'd0);
+wire [11:0] nb_vstart = mode[0] ? 12'd66 : 12'd37;
+wire        nb_next   = (ce_div == 2'd3) ? ce_sr[2] : (ce_div == 2'd1) ? ce_sr[0] : 1'b1;
 reg       vsync_n_l, hsync_n_l;
 always @(posedge clk_32) begin
 	reg  [11:0] hcnt,vcnt;
@@ -274,13 +279,29 @@ always @(posedge clk_32) begin
 		vcnt <= 0;
 	end
 
-	if(hcnt == hstart[mode]) begin
-		hblank_gen <= 0;
-		if(vcnt == vstart[mode]) vblank_gen <= 0;
-		if(vcnt == vend[mode])   vblank_gen <= 1;
-	end
+	ce_sr <= {ce_sr[1:0], ce_pix};
 
-	if(hcnt == hend[mode]) hblank_gen <= 1;
+	if(mode[2] & ~mode[1] & ~vcrop_en) begin
+		if(~hblank_gen) begin
+			nb_cnt <= nb_cnt + 1'd1;
+			if(nb_cnt == 11'd1279) hblank_gen <= 1;
+		end
+		else if(hcnt >= nb_hmin - 1'd1 && hcnt <= nb_hmin + 2'd2 && nb_next) begin
+			hblank_gen <= 0;
+			nb_cnt <= 0;
+			if(vcnt == nb_vstart)           vblank_gen <= 0;
+			if(vcnt == nb_vstart + 12'd200) vblank_gen <= 1;
+		end
+	end
+	else begin
+		if(hcnt == hstart[mode]) begin
+			hblank_gen <= 0;
+			if(vcnt == vstart[mode]) vblank_gen <= 0;
+			if(vcnt == vend[mode])   vblank_gen <= 1;
+		end
+
+		if(hcnt == hend[mode]) hblank_gen <= 1;
+	end
 end
 
 wire hs_sd,vs_sd,hbl_sd,vbl_sd;
