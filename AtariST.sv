@@ -47,6 +47,7 @@ assign {DDRAM_CLK, DDRAM_BURSTCNT, DDRAM_ADDR, DDRAM_DIN, DDRAM_BE, DDRAM_RD, DD
 assign {SD_SCK, SD_MOSI, SD_CS} = 'Z;
 
 wire       vcrop_en = status[42];
+wire       no_border = status[45];
 reg        en216p;
 reg  [4:0] voff;
 always @(posedge CLK_VIDEO) begin
@@ -281,7 +282,7 @@ always @(posedge clk_32) begin
 
 	ce_sr <= {ce_sr[1:0], ce_pix};
 
-	if(mode[2] & ~mode[1] & ~vcrop_en) begin
+	if(~mode[1] & no_border) begin
 		if(~hblank_gen) begin
 			nb_cnt <= nb_cnt + 1'd1;
 			if(nb_cnt == 11'd1279) hblank_gen <= 1;
