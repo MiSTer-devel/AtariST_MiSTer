@@ -846,7 +846,10 @@ reg         turbo_bus;
 always @(posedge clk_32)
 	if (mhz8_en1 & as_n) begin
 		use_16mhz <= (enable_16mhz | steroids);
-		turbo_bus <= (enable_cache | steroids);
+		// the RAM cycle changes only during horizontal sync: changed inside a displayed
+		// line the shifter's loads move against its pixel counter, it reloads only every
+		// second word group from then on, and nothing brings it back (vertical bars)
+		if (~hsync_n) turbo_bus <= (enable_cache | steroids);
 	end
 
 wire        fx68_phi1 = use_16mhz ?  clk16_en : mhz8_en1;
