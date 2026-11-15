@@ -73,8 +73,10 @@ CEGen ce_2m457
 (
 	.CLK(CLK),
 	.RST_N(~RST),
-	.IN_CLK(32084),
-	.OUT_CLK(2457),
+	// 2.4576 MHz against the ST's 32.084988 MHz, both divided by 12: the exact ratio.
+	// 2457/32084 ran the timers 213 ppm slow -- 33 CPU cycles in a 20 ms delay.
+	.IN_CLK(2673749),
+	.OUT_CLK(204800),
 	.CE(xclk_en)
 );
 
